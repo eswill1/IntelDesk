@@ -1,11 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { fetchUrlMetadata } from "../lib/urlMetadata";
 import type { ManualUrlIntake, SourceType, ThreadStatus } from "../types";
 
 interface AddUrlDialogProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (draft: ManualUrlIntake) => Promise<void>;
+}
+
+interface AutoManagedFields {
+  title: boolean;
+  summary: boolean;
+  author: boolean;
+  entities: boolean;
+  sourceType: boolean;
 }
 
 const sourceTypeOptions: SourceType[] = [
@@ -29,18 +38,50 @@ const initialDraft: ManualUrlIntake = {
   note: ""
 };
 
+const initialAutoManaged: AutoManagedFields = {
+  title: false,
+  summary: false,
+  author: false,
+  entities: false,
+  sourceType: false
+};
+
 export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
   const [draft, setDraft] = useState<ManualUrlIntake>(initialDraft);
   const [entityInput, setEntityInput] = useState("");
   const [error, setError] = useState("");
+  const [metadataMessage, setMetadataMessage] = useState("");
+  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [autoManaged, setAutoManaged] = useState<AutoManagedFields>(initialAutoManaged);
+  const [lastAnalyzedUrl, setLastAnalyzedUrl] = useState("");
+  const draftRef = useRef(draft);
+  const entityInputRef = useRef(entityInput);
+  const autoManagedRef = useRef(autoManaged);
+  const metadataRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    entityInputRef.current = entityInput;
+  }, [entityInput]);
+
+  useEffect(() => {
+    autoManagedRef.current = autoManaged;
+  }, [autoManaged]);
 
   useEffect(() => {
     if (!open) {
       setDraft(initialDraft);
       setEntityInput("");
       setError("");
+      setMetadataMessage("");
+      setIsFetchingMetadata(false);
       setIsSaving(false);
+      setAutoManaged(initialAutoManaged);
+      setLastAnalyzedUrl("");
     }
   }, [open]);
 
@@ -62,6 +103,91 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
 
   if (!open) {
     return null;
+  }
+
+  function setManualField<K extends keyof ManualUrlIntake>(field: K, value: ManualUrlIntake[K]) {
+    setDraft((current) => ({ ...current, [field]: value }));
+
+    if (field === "title" || field === "summary" || field === "author") {
+      setAutoManaged((current) => ({ ...current, [field]: false }));
+    }
+
+    if (field === "sourceType") {
+      setAutoManaged((current) => ({ ...current, sourceType: false }));
+    }
+  }
+
+  async function analyzeUrl(force = false) {
+    const urlCandidate = draftRef.current.url.trim();
+
+    if (!urlCandidate) {
+      return;
+    }
+
+    if (!force && urlCandidate === lastAnalyzedUrl) {
+      return;
+    }
+
+    const requestId = metadataRequestIdRef.current + 1;
+    metadataRequestIdRef.current = requestId;
+    setIsFetchingMetadata(true);
+    setError("");
+    setMetadataMessage("Analyzing URL and attempting metadata fetch.");
+
+    try {
+      const metadata = await fetchUrlMetadata(urlCandidate);
+
+      if (metadataRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      const currentDraft = draftRef.current;
+      const currentEntities = entityInputRef.current;
+      const managed = autoManagedRef.current;
+      const shouldReplaceTitle = !currentDraft.title?.trim() || managed.title;
+      const shouldReplaceSummary = !currentDraft.summary?.trim() || managed.summary;
+      const shouldReplaceAuthor = !currentDraft.author?.trim() || managed.author;
+      const shouldReplaceEntities = !currentEntities.trim() || managed.entities;
+      const shouldReplaceSourceType =
+        currentDraft.sourceType === initialDraft.sourceType || managed.sourceType;
+
+      setDraft({
+        ...currentDraft,
+        url: metadata.normalizedUrl,
+        title: shouldReplaceTitle ? metadata.title ?? currentDraft.title : currentDraft.title,
+        summary: shouldReplaceSummary
+          ? metadata.summary ?? currentDraft.summary
+          : currentDraft.summary,
+        author: shouldReplaceAuthor ? metadata.author ?? currentDraft.author : currentDraft.author,
+        sourceType: shouldReplaceSourceType
+          ? metadata.sourceType ?? currentDraft.sourceType
+          : currentDraft.sourceType
+      });
+
+      if (shouldReplaceEntities) {
+        setEntityInput(metadata.entities.join(", "));
+      }
+
+      setAutoManaged({
+        title: shouldReplaceTitle && Boolean(metadata.title),
+        summary: shouldReplaceSummary && Boolean(metadata.summary),
+        author: shouldReplaceAuthor && Boolean(metadata.author),
+        entities: shouldReplaceEntities && metadata.entities.length > 0,
+        sourceType: shouldReplaceSourceType && Boolean(metadata.sourceType)
+      });
+      setMetadataMessage(metadata.message);
+      setLastAnalyzedUrl(metadata.normalizedUrl);
+    } catch (metadataError) {
+      setError(
+        metadataError instanceof Error
+          ? metadataError.message
+          : "Unable to analyze the URL right now."
+      );
+    } finally {
+      if (metadataRequestIdRef.current === requestId) {
+        setIsFetchingMetadata(false);
+      }
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -112,24 +238,48 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
         </div>
 
         <p className="modal-copy">
-          Capture a source into the local workbench now. Full fetch and reader-mode extraction can
-          layer on top of this later.
+          Paste a source URL and IntelDesk will derive a title immediately, then try to fetch page
+          metadata if the source allows it. Manual edits always win once you type over a field.
         </p>
 
         <form className="form-stack" onSubmit={handleSubmit}>
           <label className="field-group">
             <span className="meta-text">URL</span>
-            <input
-              autoFocus
-              className="search-input"
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, url: event.target.value }))
-              }
-              placeholder="https://example.com/advisory"
-              type="url"
-              value={draft.url}
-            />
+            <div className="field-row">
+              <input
+                autoFocus
+                className="search-input"
+                onBlur={() => void analyzeUrl(false)}
+                onChange={(event) => {
+                  const nextUrl = event.target.value;
+                  setDraft((current) => ({ ...current, url: nextUrl }));
+                  if (nextUrl.trim() !== lastAnalyzedUrl) {
+                    setMetadataMessage("URL changed. Analyze to refresh title and metadata.");
+                  }
+                }}
+                placeholder="https://example.com/advisory"
+                type="url"
+                value={draft.url}
+              />
+              <button
+                className="ghost-button"
+                disabled={isFetchingMetadata || !draft.url.trim()}
+                onClick={() => void analyzeUrl(true)}
+                type="button"
+              >
+                {isFetchingMetadata ? "Analyzing..." : "Analyze URL"}
+              </button>
+            </div>
+            <span className="field-help">
+              Live fetch is best-effort only. Some sites will block browser-side metadata access.
+            </span>
           </label>
+
+          {metadataMessage ? (
+            <p className="form-status" aria-live="polite">
+              {metadataMessage}
+            </p>
+          ) : null}
 
           <div className="form-grid">
             <label className="field-group">
@@ -137,10 +287,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
               <select
                 className="search-input"
                 onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    sourceType: event.target.value as SourceType
-                  }))
+                  setManualField("sourceType", event.target.value as SourceType)
                 }
                 value={draft.sourceType}
               >
@@ -156,12 +303,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
               <span className="meta-text">Thread Status</span>
               <select
                 className="search-input"
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    status: event.target.value as ThreadStatus
-                  }))
-                }
+                onChange={(event) => setManualField("status", event.target.value as ThreadStatus)}
                 value={draft.status}
               >
                 {threadStatusOptions.map((item) => (
@@ -178,10 +320,8 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
               <span className="meta-text">Title</span>
               <input
                 className="search-input"
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, title: event.target.value }))
-                }
-                placeholder="Optional, otherwise derived from the URL"
+                onChange={(event) => setManualField("title", event.target.value)}
+                placeholder="Derived from the URL or page metadata"
                 type="text"
                 value={draft.title ?? ""}
               />
@@ -191,9 +331,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
               <span className="meta-text">Author</span>
               <input
                 className="search-input"
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, author: event.target.value }))
-                }
+                onChange={(event) => setManualField("author", event.target.value)}
                 placeholder="Optional"
                 type="text"
                 value={draft.author ?? ""}
@@ -205,9 +343,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
             <span className="meta-text">Summary</span>
             <textarea
               className="search-input text-area"
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, summary: event.target.value }))
-              }
+              onChange={(event) => setManualField("summary", event.target.value)}
               placeholder="Optional thread summary for the Inbox card"
               rows={4}
               value={draft.summary ?? ""}
@@ -218,7 +354,10 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
             <span className="meta-text">Entities</span>
             <input
               className="search-input"
-              onChange={(event) => setEntityInput(event.target.value)}
+              onChange={(event) => {
+                setEntityInput(event.target.value);
+                setAutoManaged((current) => ({ ...current, entities: false }));
+              }}
               placeholder="CVE-2026-1182, Ivanti, Connect Secure"
               type="text"
               value={entityInput}
@@ -229,9 +368,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
             <span className="meta-text">Intake Note</span>
             <textarea
               className="search-input text-area"
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, note: event.target.value }))
-              }
+              onChange={(event) => setManualField("note", event.target.value)}
               placeholder="Why this looks worth tracking, or what changed"
               rows={3}
               value={draft.note ?? ""}

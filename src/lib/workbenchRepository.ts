@@ -4,6 +4,7 @@ import {
   threads as seededThreads
 } from "../data/mockData";
 import { hasMeaningfulThreadChange } from "./threadWorkflow";
+import { normalizeUrlInput } from "./urlMetadata";
 import type {
   CaseFile,
   ManualUrlAddResult,
@@ -251,24 +252,6 @@ function sortRegistryEntries(entries: SourceRegistryEntry[]) {
 
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function normalizeUrl(rawUrl: string) {
-  const trimmed = rawUrl.trim();
-
-  if (!trimmed) {
-    throw new Error("URL is required.");
-  }
-
-  try {
-    return new URL(trimmed).toString();
-  } catch {
-    try {
-      return new URL(`https://${trimmed}`).toString();
-    } catch {
-      throw new Error("Enter a valid URL.");
-    }
-  }
 }
 
 function getDomainFromUrl(url: string) {
@@ -566,7 +549,7 @@ export const workbenchRepository = {
 
   async addManualUrl(userId: string, draft: ManualUrlIntake): Promise<ManualUrlAddResult> {
     return withDatabase(async (database) => {
-      const normalizedUrl = normalizeUrl(draft.url);
+      const normalizedUrl = normalizeUrlInput(draft.url).toString();
       const lookup = database.transaction(
         [storeNames.threads, storeNames.sourceRegistry, storeNames.threadStates],
         "readonly"

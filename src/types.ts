@@ -99,6 +99,17 @@ export interface ManualUrlAddResult {
   duplicate: boolean;
 }
 
+export interface ManualUrlMetadata {
+  normalizedUrl: string;
+  title?: string;
+  summary?: string;
+  author?: string;
+  entities: string[];
+  sourceType?: SourceType;
+  strategy: "fetched" | "derived";
+  message: string;
+}
+
 export interface WorkspaceUser {
   id: string;
   name: string;

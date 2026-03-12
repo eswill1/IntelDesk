@@ -607,6 +607,20 @@ button:disabled {
   gap: 0.4rem;
 }
 
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.field-help,
+.form-status {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
 .form-error {
   margin: 0;
   color: var(--delta);
@@ -672,6 +686,10 @@ button:disabled {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field-row {
     grid-template-columns: 1fr;
   }
 }
