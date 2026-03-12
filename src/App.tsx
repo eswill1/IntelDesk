@@ -26,14 +26,18 @@ import type {
 } from "./types";
 
 const themeStorageKey = "inteldesk-theme";
+const reviewQueueViewId = "queue-review";
+const watchlistViewId = "queue-watching";
+const inCasesViewId = "queue-in-case";
+const specialMonitorViewIds = new Set([reviewQueueViewId, watchlistViewId, inCasesViewId]);
 
 function readStoredTheme() {
   if (typeof window === "undefined") {
-    return true;
+    return false;
   }
 
   const persisted = window.localStorage.getItem(themeStorageKey);
-  return persisted ? persisted === "dark" : true;
+  return persisted ? persisted === "dark" : false;
 }
 
 function isNeedsReviewQueue(queueState?: ThreadQueueState) {
@@ -90,22 +94,79 @@ export default function App() {
     threadWorkflowMap
   );
   const monitorViews = buildAgentViews(agentDefinitions, threads, threadWorkflowMap);
-  const reviewableCards = onlyDelta
-    ? allCards.filter((thread) => isNeedsReviewQueue(threadWorkflowMap[thread.id]?.queueState))
-    : allCards;
-  const visibleThreads = selectedMonitorId
-    ? reviewableCards.filter((thread) =>
-        monitorViews
-          .find((monitor) => monitor.id === selectedMonitorId)
-          ?.matches.some((match) => match.threadId === thread.id)
-      )
-    : reviewableCards;
   const watchedThreads = allCards.filter(
     (thread) => threadWorkflowMap[thread.id]?.state === "watching"
   );
   const needsReviewCount = allCards.filter((thread) =>
     isNeedsReviewQueue(threadWorkflowMap[thread.id]?.queueState)
   ).length;
+  const inCaseCount = allCards.filter(
+    (thread) => threadWorkflowMap[thread.id]?.queueState === "in-case"
+  ).length;
+  const selectedMonitor = monitorViews.find((monitor) => monitor.id === selectedMonitorId) ?? null;
+  const scopedThreads = (() => {
+    if (selectedMonitorId === reviewQueueViewId) {
+      return allCards.filter((thread) => isNeedsReviewQueue(threadWorkflowMap[thread.id]?.queueState));
+    }
+
+    if (selectedMonitorId === watchlistViewId) {
+      return allCards.filter((thread) => threadWorkflowMap[thread.id]?.queueState === "watching");
+    }
+
+    if (selectedMonitorId === inCasesViewId) {
+      return allCards.filter((thread) => threadWorkflowMap[thread.id]?.queueState === "in-case");
+    }
+
+    if (!selectedMonitor) {
+      return allCards;
+    }
+
+    const matchedThreadIds = new Set(selectedMonitor.matches.map((match) => match.threadId));
+    return allCards.filter((thread) => matchedThreadIds.has(thread.id));
+  })();
+  const deltaToggleDisabled = specialMonitorViewIds.has(selectedMonitorId);
+  const visibleThreads =
+    onlyDelta && !deltaToggleDisabled
+      ? scopedThreads.filter((thread) => isNeedsReviewQueue(threadWorkflowMap[thread.id]?.queueState))
+      : scopedThreads;
+  const focusViews = [
+    {
+      id: "",
+      label: "All cards",
+      description: "Everything IntelDesk is tracking across your saved monitors.",
+      count: allCards.length
+    },
+    {
+      id: reviewQueueViewId,
+      label: "Review queue",
+      description: "Fresh or reactivated cards that still need a decision.",
+      count: needsReviewCount
+    },
+    {
+      id: watchlistViewId,
+      label: "Watchlist",
+      description: "Signals worth revisiting before they graduate into full cases.",
+      count: watchedThreads.length
+    },
+    {
+      id: inCasesViewId,
+      label: "In cases",
+      description: "Cards already promoted into active follow-through work.",
+      count: inCaseCount
+    }
+  ];
+  const selectedFocusView = focusViews.find((view) => view.id === selectedMonitorId) ?? focusViews[0];
+  const activeFeed = selectedMonitor
+    ? {
+        eyebrow: "Saved monitor",
+        title: selectedMonitor.title,
+        description: selectedMonitor.summary
+      }
+    : {
+        eyebrow: selectedFocusView.id ? "Focused view" : "Daily monitor feed",
+        title: selectedFocusView.label,
+        description: selectedFocusView.description
+      };
 
   const query = deferredQuery.trim().toLowerCase();
   const resultSet: SearchResult[] = [
@@ -301,7 +362,11 @@ export default function App() {
   }, [selectedThreadId, visibleThreads]);
 
   useEffect(() => {
-    if (selectedMonitorId && !monitorViews.some((monitor) => monitor.id === selectedMonitorId)) {
+    if (
+      selectedMonitorId &&
+      !specialMonitorViewIds.has(selectedMonitorId) &&
+      !monitorViews.some((monitor) => monitor.id === selectedMonitorId)
+    ) {
       setSelectedMonitorId("");
     }
   }, [monitorViews, selectedMonitorId]);
@@ -456,7 +521,12 @@ export default function App() {
 
         {activeView === "monitors" ? (
           <MonitorsView
+            activeFeed={activeFeed}
+            allCardCount={allCards.length}
             cards={visibleThreads}
+            deltaToggleDisabled={deltaToggleDisabled}
+            focusViews={focusViews}
+            inCaseCount={inCaseCount}
             monitors={monitorViews}
             onSaveCardToCase={saveThreadToCase}
             onSelectCard={setSelectedThreadId}
@@ -464,9 +534,11 @@ export default function App() {
             onToggleOnlyDelta={() => setOnlyDelta((current) => !current)}
             onToggleWatchCard={toggleWatchThread}
             onlyDelta={onlyDelta}
+            reviewCount={needsReviewCount}
             selectedCardId={selectedThreadId}
             selectedMonitorId={selectedMonitorId}
             threadWorkflowMap={threadWorkflowMap}
+            watchCount={watchedThreads.length}
           />
         ) : null}
 

@@ -11,15 +11,16 @@ interface TopBarProps {
 const titles: Record<NavView, { title: string; subtitle: string }> = {
   monitors: {
     title: "Monitors",
-    subtitle: "A clean, monitor-first stream for daily intel gathering, quick triage, and deliberate follow-through."
+    subtitle:
+      "A calm, high-signal stream for daily collection, triage, and quick analyst decisions."
   },
   cases: {
     title: "Cases",
-    subtitle: "A durable workspace for the cards that became real investigations."
+    subtitle: "A durable workspace for the few signals that earned narrative follow-through."
   },
   library: {
     title: "Library",
-    subtitle: "Search cards, inspect saved sources, and recover context without leaving the workbench."
+    subtitle: "Search your retained context, inspect sources, and recover prior work without hunting."
   }
 };
 
@@ -33,20 +34,22 @@ export function TopBar({
   const view = titles[activeView];
 
   return (
-    <header className="topbar panel">
-      <div>
+    <header className="topbar">
+      <div className="topbar-intro">
         <p className="eyebrow">Monitor first. Case second.</p>
-        <h2>{view.title}</h2>
+        <div className="topbar-heading-row">
+          <h2>{view.title}</h2>
+          <div className="status-pill topbar-status">
+            <span className="status-dot" />
+            <span>Local analyst workspace</span>
+          </div>
+        </div>
         <p className="topbar-copy">{view.subtitle}</p>
       </div>
 
       <div className="topbar-actions">
-        <div className="status-pill">
-          <span className="status-dot" />
-          <span>Local analyst profile</span>
-        </div>
         <button
-          className="ghost-button"
+          className="ghost-button primary-button"
           disabled={addUrlDisabled}
           onClick={onOpenAddUrl}
           type="button"

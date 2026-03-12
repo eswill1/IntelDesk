@@ -34,6 +34,29 @@ export function CasesView({
   return (
     <div className="workspace-grid">
       <section className="panel list-panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Case board</p>
+            <h3>Tracked follow-through</h3>
+          </div>
+          <span className="meta-text">{cases.length} active files</span>
+        </div>
+
+        <div className="monitor-hero">
+          <div>
+            <span className="metric-label">Watch queue</span>
+            <strong>{watchedThreads.length}</strong>
+          </div>
+          <div>
+            <span className="metric-label">Open cases</span>
+            <strong>{cases.length}</strong>
+          </div>
+          <div>
+            <span className="metric-label">Linked cards</span>
+            <strong>{cases.reduce((sum, item) => sum + item.linkedThreadIds.length, 0)}</strong>
+          </div>
+        </div>
+
         <div className="section-stack">
           <section className="subsection">
             <div className="subsection-header">
@@ -125,25 +148,29 @@ export function CasesView({
       <aside className="panel detail-panel">
         {selectedCase ? (
           <>
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Case detail</p>
-                <h3>{selectedCase.title}</h3>
+            <div className="case-hero">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Case detail</p>
+                  <h3>{selectedCase.title}</h3>
+                </div>
+                <div className="detail-actions">
+                  <button className="ghost-button" type="button">
+                    Export MD
+                  </button>
+                  <button className="ghost-button" type="button">
+                    Add Note
+                  </button>
+                </div>
               </div>
-              <div className="detail-actions">
-                <button className="ghost-button" type="button">
-                  Export MD
-                </button>
-                <button className="ghost-button" type="button">
-                  Add Note
-                </button>
-              </div>
-            </div>
 
-            <div className="detail-block">
-              <span className={`status-tag status-${selectedCase.status}`}>
-                {selectedCase.status}
-              </span>
+              <div className="thread-card-topline">
+                <span className={`status-tag status-${selectedCase.status}`}>
+                  {selectedCase.status}
+                </span>
+                <span className="canonical-pill">{linkedThreads.length} linked cards</span>
+              </div>
+
               <p className="meta-text">
                 Last updated {formatTime(selectedCase.lastUpdated)}. Last seen{" "}
                 {formatTime(selectedCase.lastSeenAt)}.
@@ -154,6 +181,25 @@ export function CasesView({
                     {tag}
                   </span>
                 ))}
+              </div>
+
+              <div className="preview-stat-grid">
+                <article className="preview-stat">
+                  <span className="metric-label">Delta items</span>
+                  <strong>{selectedCase.deltaSummary.length}</strong>
+                </article>
+                <article className="preview-stat">
+                  <span className="metric-label">Notes</span>
+                  <strong>{selectedCase.notes.length}</strong>
+                </article>
+                <article className="preview-stat">
+                  <span className="metric-label">Timeline</span>
+                  <strong>{selectedCase.timeline.length}</strong>
+                </article>
+                <article className="preview-stat">
+                  <span className="metric-label">Status</span>
+                  <strong>{selectedCase.status}</strong>
+                </article>
               </div>
             </div>
 

@@ -48,6 +48,10 @@ export function LibraryView({
           <div>
             <p className="eyebrow">Library</p>
             <h3>Search and saved sources</h3>
+            <p className="topbar-copy">
+              Recover prior context fast, whether you remember the card, the case, the source, or
+              just the entity.
+            </p>
           </div>
           <div className="segmented-control" role="tablist" aria-label="Library sections">
             <button
@@ -64,6 +68,21 @@ export function LibraryView({
             >
               Sources
             </button>
+          </div>
+        </div>
+
+        <div className="monitor-hero">
+          <div>
+            <span className="metric-label">Results loaded</span>
+            <strong>{results.length}</strong>
+          </div>
+          <div>
+            <span className="metric-label">Tracked sources</span>
+            <strong>{registry.length}</strong>
+          </div>
+          <div>
+            <span className="metric-label">Mode</span>
+            <strong>{activeTab}</strong>
           </div>
         </div>
 
