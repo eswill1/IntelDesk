@@ -1,151 +1,235 @@
 # IntelDesk Implementation Plan
 
-## Decision
+## Product Decision
 
-IntelDesk will start as a local-first web app, not a hosted SaaS platform and not a desktop shell on day one.
+IntelDesk should be implemented as a hosted web platform shaped primarily by the Feedly Threat Intelligence workflow, with case management and follow-through as the differentiator.
 
-This is a deliberate adjustment from the original desktop recommendation:
+The target product is:
 
-- the user asked for a web app
-- the product still benefits from local-first storage and offline-friendly interaction
-- the first milestone should validate the research workflow before introducing native shell complexity
+- a `Threat Landscape` home for daily monitoring
+- `Agents` for saved monitoring lenses
+- `Intel Cards` for grouped intelligence objects such as CVEs, attacks, malware, vendors, and actors
+- `Cases` for durable investigations
+- `Sources`, `Library`, `Briefs`, and `Search` as supporting surfaces
 
-## Stack
+The current local-first prototype remains useful, but it is now explicitly a stepping stone toward a team-ready hosted product.
 
-### Frontend
+## Product Architecture
+
+### Product Surfaces
+
+Primary navigation should evolve toward:
+
+- `Threat Landscape`
+- `Agents`
+- `Cases`
+- `Sources`
+- `Library`
+- `Briefs`
+- `Search`
+
+Implementation notes:
+
+- the current `Inbox` should evolve into `Threat Landscape`
+- the current internal `thread` model should evolve into user-facing `Intel Cards`
+- `Cases` remains the durable investigation workspace
+
+### Core Product Loop
+
+IntelDesk should optimize for this daily loop:
+
+1. open `Threat Landscape`
+2. review prioritized cards or a saved `Agent`
+3. take one action per card: review, watch, case, mute, or brief
+4. reopen `Cases` for active investigations
+5. export or brief when needed
+
+### Core Objects
+
+Shared intelligence layer:
+
+- `Observation`
+  - a raw source item such as an advisory, article, repo, or post
+- `Entity`
+  - CVE, vendor, product, malware, actor, campaign, technique
+- `Intel Card`
+  - grouped observations about the same vulnerability, attack, actor, malware family, or event
+- `Source Registry`
+  - tracked domains, feeds, and reliability signals
+- `Agent`
+  - saved monitoring query or filter lens
+
+Analyst-specific workflow layer:
+
+- `Card State`
+  - new, reviewed, watching, in case, muted, new delta
+- `Case`
+  - investigation workspace with notes and timeline
+- `Brief`
+  - user-curated exportable output
+- `Source Preferences`
+  - promoted, demoted, muted, tagged
+
+### Current Code Mapping
+
+To keep implementation continuity:
+
+- internal `thread` can remain the storage primitive for now
+- user-facing copy should increasingly refer to `Intel Cards`
+- `thread_state` should evolve into `analyst_card_state`
+
+## Scope Priorities
+
+### What Must Be True In V1
+
+- the product feels closer to Feedly Threat Intelligence than to a generic dashboard
+- analysts can monitor saved topics without reading everything
+- important attacks and vulnerabilities become coherent cards instead of noisy source piles
+- `Cases` provide durable follow-through with notes, timeline, and deltas
+- source provenance remains visible at every step
+
+### What Is Explicitly Out Of Scope For V1
+
+- full MISP-style sharing exchange
+- OpenCTI-style graph exploration as the primary UX
+- SIEM, SOAR, and ticket orchestration
+- extensive enterprise workflow layers
+- automated exploit retrieval or weaponization workflows
+
+## Functional Scope
+
+### Threat Landscape
+
+Must support:
+
+- prioritized cards across vulnerabilities, attacks, malware, actors, and vendors
+- `Only Delta` or equivalent "what changed" filter
+- time range filtering
+- saved views
+- clear actions: watch, case, mute, add to brief
+
+### Agents
+
+Must support:
+
+- saved monitors defined by entities, keywords, source classes, and status filters
+- reusable saved views for common topics
+- later, agent templates for common analyst workflows
+
+### Intel Cards
+
+Each card should support:
+
+- current summary
+- canonical sources
+- article mention count and corroboration count
+- timeline
+- entity tags
+- change summary since last view
+- exploitability or defensive context when available
+- actions to watch, case, mute, brief, or export
+
+### Cases
+
+Must support:
+
+- create from card or source
+- notes
+- timeline
+- linked cards and sources
+- status and last-seen tracking
+- delta summary since last review
+
+### Sources
+
+Must support:
+
+- add URL
+- add feed
+- promote, demote, mute
+- source radar rationale
+- original versus echo signal
+
+### Briefs
+
+Must support:
+
+- markdown export
+- reading list export
+- card and case selection for analyst brief generation
+
+## Intake And Discovery Strategy
+
+### Intake
+
+Source intake should be both deliberate and assisted.
+
+Deliberate paths:
+
+- `Add URL`
+- `Add Feed`
+- `Promote Source`
+
+Assisted paths:
+
+- `Seed & Expand` from a URL
+- outbound-link expansion
+- later, saved-agent discovery
+
+### Discovery
+
+Discovery should remain explainable.
+
+Primary discovery signals:
+
+- outbound links from a seed source
+- repeated appearance across related cards
+- early appearance in a card timeline
+- links from already promoted sources
+- entity matches against existing cards and agent definitions
+
+Community sources such as Reddit or Bluesky should be treated as pointer layers, not canonical record layers.
+
+## Review And Action Model
+
+Primary review state should remain card-based.
+
+Card lifecycle:
+
+- `New`
+- `Reviewed`
+- `Watching`
+- `In Case`
+- `Muted`
+- derived `New Delta`
+
+Behavior rules:
+
+- opening a card starts a soft review session
+- leaving without another explicit action marks it `Reviewed`
+- watched and case-linked cards remain visible in their respective work surfaces
+- meaningful change reactivates a card as `New Delta`
+
+## Technology Direction
+
+### Current Prototype Stack
 
 - `React`
 - `TypeScript`
 - `Vite`
-- plain CSS with design tokens
+- `IndexedDB` for prototype persistence
+- lightweight Node-based preview and seed API
 
-### Local Data Layer
+### Hosted Product Stack
 
-Planned next:
+Recommended application stack:
 
-- `IndexedDB` for local persistence
-- local snapshot storage for saved source content
-- search index bootstrapped from local content
-
-### Hosted Team Layer
-
-When IntelDesk moves from single-user local-first into a small hosted pilot for colleagues, the recommended service stack is:
-
-- `Nginx` for TLS termination, reverse proxying, and static asset delivery
-- `FastAPI` for API endpoints, auth/session logic, exports, and operational reads/writes
-- a separate `worker` process for ingestion, extraction, clustering, and delta detection
-- `Postgres` for durable shared state and full-text search
-- local filesystem storage for snapshots and exports in v1
-- `systemd` for service supervision on a small VPS
-
-Avoid introducing Redis, Elasticsearch, Kubernetes, or object-storage daemons on day one for this deployment tier unless load proves they are necessary
-
-### Later Service Layer
-
-Once the UI loop is proven:
-
-- ingestion workers for RSS and manual URL fetch
-- extraction pipeline for canonical text and metadata
-- background delta detection
-- optional desktop packaging if browser background limits become a real constraint
-
-## Core Workflow
-
-IntelDesk should operate on a simple hierarchy of intent:
-
-- `Thread` means the system believes multiple items are about the same thing
-- `Watch` means the user believes the thread is worth revisiting
-- `Case` means the user wants a durable investigation workspace
-
-Not every thread becomes a case. Most should die in triage. The product becomes useful only if it helps the user close items quickly without losing the ability to resurface real changes.
-
-Daily loop:
-
-1. open `Inbox`, usually with `Only Delta` enabled
-2. review thread cards instead of raw items
-3. take one action per thread: ignore, review and move on, watch, case, or mute
-4. reopen `Cases` for threads that earned durable notes, timeline, and context
-5. review `Sources` when IntelDesk suggests new domains worth adding to the canon
-
-## Review Queue Model
-
-The primary queue should be thread-based, not source-item-based.
-
-V1 thread lifecycle states:
-
-- `New`: never reviewed
-- `Reviewed`: opened and intentionally left behind without escalation
-- `Watching`: explicitly parked for revisit
-- `In Case`: promoted into a durable case workspace
-- `Muted`: hidden unless manually revisited or overridden by future rules
-
-Derived state:
-
-- `New Delta`: a reviewed, watched, or case-linked thread that changed meaningfully since last seen
-
-Behavior rules:
-
-- opening a thread starts a soft read session
-- leaving a thread without another explicit action marks it `Reviewed`
-- `Reviewed` threads fall out of the default queue
-- a thread can move from `Reviewed` back to `New Delta` when meaningful change occurs
-- `Watch` is the lightweight intermediate state between triage and case creation
-- `Case` is the durable state for incidents that need notes, timeline, and repeat re-entry
-
-The point is to give every item closure without turning the Inbox into a permanent unread list.
-
-## Source Addition And Discovery Strategy
-
-Source onboarding should be deliberate. Source discovery should be opportunistic and explainable.
-
-### Source Addition
-
-Initial source entry points:
-
-- `Add URL` for one-off source items
-- `Add Feed` for continuous RSS monitoring
-- `Promote Source` from the Source Registry or Source Radar
-
-The system should not silently subscribe the user to newly discovered sources. Promotion into the monitored set must remain explicit.
-
-### Source Discovery
-
-IntelDesk should discover candidate sources through evidence already flowing through the workbench:
-
-- outbound links extracted from ingested source items
-- repeated appearance of a domain in saved, watched, or high-signal threads
-- early appearance in a thread timeline
-- citation by already promoted domains
-- community connectors such as Reddit or Bluesky, treated as pointer layers rather than durable record layers
-
-### Source Radar
-
-`Source Radar` should surface candidates with an interpretable rationale, not a magic score.
-
-Candidate reasons:
-
-- appears early in multiple credible threads
-- repeatedly cited by promoted sources
-- contributes original reporting more often than repetition
-- shows up in watched or case-linked threads with increasing frequency
-
-For each candidate, show:
-
-- why it surfaced
-- example threads where it mattered
-- current user stance: neutral, promoted, demoted, muted
-
-### Rollout Order
-
-Source onboarding should be built in this order:
-
-1. `Add URL`
-2. `Add Feed`
-3. `Source Registry`
-4. `Source Radar`
-5. community discovery connectors, pointer-first and retention-minimal
-
-## Deployment Architecture
+- `Nginx` for TLS termination, static asset delivery, and reverse proxying
+- `FastAPI` for product APIs
+- separate `worker` process for fetch, extraction, clustering, enrichment, and delta detection
+- `Postgres` for durable shared state and search
+- local filesystem storage for snapshots and exports in early hosted deployments
+- `systemd` for supervision on the initial VPS tier
 
 ### Deployment Target
 
@@ -154,235 +238,177 @@ Initial hosted deployment target:
 - `IONOS VPS M`
 - `4 GB RAM`
 
-This size is enough for a small internal rollout if the deployment stays lean and the ingestion cadence remains disciplined. It is not the right box for a container-heavy or microservice-heavy architecture.
+That tier is appropriate if the deployment remains lean.
 
-### Recommended Hosted Layout
+Do not add initially:
 
-Run IntelDesk as a small set of supervised processes on one host:
-
-- `Nginx`
-- `inteldesk-api` as a `FastAPI` service
-- `inteldesk-worker` as a separate background worker service
-- `Postgres`
-
-Serve the built frontend as static files directly from Nginx. Route `/api/` to the FastAPI service. Keep the worker separate from the API process even on the same VPS, because it will fetch and parse arbitrary internet content and should not share the request-serving runtime.
-
-### Why This Layout Fits A 4 GB VPS
-
-This hosted shape is intentionally conservative:
-
-- the frontend costs almost nothing at runtime when served as static assets
-- `FastAPI` remains light enough for a small internal audience
-- `Postgres` can handle app storage plus initial search needs
-- a separate worker preserves architectural isolation without needing more machines
-- `systemd` is leaner than a full container orchestration stack on this class of server
-
-### Do Not Add Initially
-
-For the first VPS deployment, do not add:
-
-- `Redis` for queues or cache
+- `Redis`
 - `Elasticsearch` or `OpenSearch`
-- `MinIO`
-- Docker Swarm or Kubernetes
+- container orchestration
+- object-storage daemons on-box
 
-Instead:
+### Security Boundary
 
-- use a Postgres-backed job table for worker tasks
-- use Postgres full-text search for v1
-- store HTML snapshots and exports on local disk outside the web root
-- back up database dumps and snapshot directories to an external destination
-
-### Operational Shape
-
-Recommended process supervision:
-
-- `nginx.service`
-- `postgresql.service`
-- `inteldesk-api.service`
-- `inteldesk-worker.service`
-
-Recommended API serving model:
-
-- one app process behind `uvicorn` or `gunicorn + uvicorn workers`
-- start with low worker counts to preserve RAM
-- increase concurrency only after measuring actual team usage
-
-Recommended storage layout:
-
-- Postgres data on the VPS
-- snapshot and export files under an application-owned directory such as `/var/lib/inteldesk/`
-- nightly off-box backups for database and snapshots
-
-### Security Notes
-
-Because IntelDesk fetches arbitrary external content, the worker should be treated as the higher-risk process.
+Fetch and extraction should remain isolated from the request-serving runtime.
 
 Minimum safeguards:
 
-- run API and worker under a dedicated non-root application user
-- keep fetched content outside the Nginx-served directories
-- apply outbound fetch timeouts, size limits, and content-type checks
-- separate worker temp files from app runtime files
-
-### Scale-Up Trigger
-
-This single-VPS deployment remains the default until at least one of the following becomes true:
-
-- ingestion jobs begin contending with interactive user traffic
-- Postgres search latency becomes noticeably poor
-- snapshot storage begins consuming too much local disk
-- concurrent colleagues make API latency unstable during ingest windows
-
-When that happens, the first split should be:
-
-1. move Postgres to a managed or separate host
-2. move the worker off the web/API box
-3. add Redis only if job throughput genuinely requires it
-
-## Milestones
-
-### M0: Repo Foundations
-
-- scaffold the app shell
-- codify product doctrine
-- build the information architecture into the UI
-- make the watch queue and case model visible in the prototype
-
-Exit criteria:
-
-- the repo has an intentional starting structure
-- the app shell reflects the real workbench model rather than a generic dashboard
-
-### M1: Local Library, Review State, And Persistence
-
-- add IndexedDB schema for source items, threads, cases, notes, source registry entries, and thread review state
-- persist theme, selected views, watch queue, and case list
-- add thread-level review lifecycle: new, reviewed, watching, in case, muted
-- auto-mark a thread `Reviewed` when the user leaves it without another action
-- add reactivation rules so meaningful deltas can revive previously reviewed threads
-
-Exit criteria:
-
-- the app restores state after reload
-- thread workflow survives reloads, not just raw content
-- the Inbox behaves like a review queue instead of a bookmark pile
-
-### M2: Ingestion And Source Onboarding
-
-- add manual `Add URL`
-- add `Add Feed` for RSS sources
-- extract main content, title, author, timestamps, and outbound links
-- canonicalize URLs and strip safe tracking parameters
-- store the minimum viable source-registry record for newly added feeds and discovered domains
-
-Exit criteria:
-
-- new source items can enter the local library through real ingestion paths
-- the user can deliberately expand the monitored source set
-
-### M3: Threads, Dedupe, And Delta Reactivation
-
-- exact dedupe using canonical URL and content hash
-- near-duplicate grouping using title and entity overlap
-- manual merge, split, and canonical-source pinning
-- reactivate previously reviewed threads when source content changes or corroboration meaningfully improves
-
-Exit criteria:
-
-- the Inbox feels materially less noisy than the raw source stream
-- reviewed items stay out of the way until a real delta occurs
-
-### M4: Watch Queue And Cases
-
-- allow a thread to be watched without forcing case creation
-- show a dedicated watch queue inside `Cases`
-- create cases from thread, source item, or search result
-- allow watched threads to be promoted into cases
-- add timestamped notes and timeline entries
-- implement last-seen tracking and delta badges per case
-
-Exit criteria:
-
-- an analyst can park promising threads without cluttering active cases
-- an analyst can reopen a case and regain context within seconds
-
-### M5: Source Registry And Source Radar
-
-- implement source registry persistence
-- add promote, demote, mute, and tags
-- compute explainable discovery signals for candidate sources
-- surface Source Radar suggestions with examples and rationale
-- distinguish discovery-pointer sources from canonical record sources
-
-Exit criteria:
-
-- the Sources view helps build a durable canon
-- source discovery feels additive and explainable rather than noisy
-
-### M6: Delta Engine And Export
-
-- detect meaningful content changes for advisory revisions
-- summarize what changed between revisions
-- show `New Delta` clearly across Inbox and Cases
-- export case files to Markdown with notes, timeline, and sources
-
-Exit criteria:
-
-- delta-first review is credible enough for daily usage
-- a case can leave the product cleanly as a usable research artifact
-
-### M7: Hosted Pilot Deployment
-
-- package the web build for Nginx static serving
-- expose FastAPI under `/api/`
-- run worker and API as separate systemd services
-- configure Postgres for shared team usage on the VPS
-- add backup jobs for database and stored snapshots
-- validate the hosted build against the IONOS VPS memory and disk constraints
-
-Exit criteria:
-
-- IntelDesk runs reliably on a single small VPS for a small internal team
-- ingestion jobs do not destabilize the interactive app
-- backups and restore steps are documented and tested
+- dedicated non-root application user
+- strict fetch timeouts and size limits
+- content-type validation
+- fetched artifacts stored outside Nginx-served paths
 
 ## Data Model Direction
 
-Core local entities:
+Shared hosted entities:
 
-- `source_item`
-- `thread`
-- `thread_item`
-- `thread_state`
-- `case_file`
-- `case_thread`
-- `case_item`
-- `note`
-- `timeline_entry`
+- `observation`
+- `entity`
+- `intel_card`
+- `card_observation`
 - `source_registry`
 - `source_feed`
-- `source_candidate`
+- `agent`
+- `brief`
 
-`thread_state` is the operational queue table for v1. It should include enough information to support:
+Analyst-scoped entities:
 
-- lifecycle state
-- first seen
-- last opened
-- last reviewed
-- last meaningful delta
-- last reactivated
+- `analyst_card_state`
+- `case_file`
+- `case_card`
+- `case_observation`
+- `note`
+- `timeline_entry`
+- `source_preference`
 
-`source_item` read state is secondary for v1. The user’s main workflow decisions happen at the thread level.
+Near-term implementation guidance:
 
-The current UI mock already follows those concepts, so the view layer will not need to be thrown away when persistence lands.
+- continue using the current thread-backed prototype model where it preserves momentum
+- keep all new storage decisions multi-user ready
+- do not attach analyst workflow state directly to shared card records
 
-## Build Rules
+## Milestones
 
-- stay single-user and local-first
-- keep ingestion explainable and source-grounded
-- do not auto-promote newly discovered sources into the monitored set
-- do not add social or team workflow concepts to v1
-- optimize for rapid re-entry into a live case
-- design for offline reading and durable notes
-- keep the primary review unit at the thread level
+### M0: Product Reframe And Shell Alignment
+
+- update documentation to match the Feedly-like product scope
+- evolve navigation from `Inbox` toward `Threat Landscape` and `Agents`
+- align terminology around `Intel Cards`
+
+Exit criteria:
+
+- docs, UI labels, and product framing point at the same target
+
+### M1: Threat Landscape And Agent Foundations
+
+- reshape the home view into a prioritized landscape
+- add saved view and saved monitor concepts
+- persist analyst state locally
+- preserve the existing review-state model
+
+Exit criteria:
+
+- the product feels like a monitoring tool, not just a bookmark manager
+
+### M2: Real Intake And Seed Expansion
+
+- strengthen `Add URL`
+- add `Add Feed`
+- maintain preview and seed expansion
+- attach discovered observations to cards
+- begin card-level dedupe and grouping rules
+
+Exit criteria:
+
+- real sources enter the product and form coherent cards
+
+### M3: Card-Centric Intelligence Views
+
+- implement richer card pages for vulnerabilities, attacks, malware, and actors
+- show timelines, source counts, related entities, and deltas
+- support watch and case promotion from the card detail
+
+Exit criteria:
+
+- `Intel Cards` become the main daily operating object
+
+### M4: Cases And Follow-Through
+
+- strengthen case creation from cards
+- add notes, timeline, and delta badges
+- support analyst re-entry and status management
+- prepare for case export and briefing use
+
+Exit criteria:
+
+- a case is materially better than just bookmarking a card
+
+### M5: Sources And Radar
+
+- finish source registry flows
+- compute explainable source radar signals
+- improve promote, demote, mute, and rationale views
+
+Exit criteria:
+
+- the source layer improves discovery without taking over the main UX
+
+### M6: Briefs And Exports
+
+- markdown case export
+- reading list export
+- first briefing workflow
+
+Exit criteria:
+
+- analysts can turn gathered intel into usable outputs
+
+### M7: Hosted Shared Layer
+
+- move from prototype-local persistence to shared hosted storage
+- add authentication and analyst identity
+- preserve the split between shared intelligence objects and analyst-specific workflow objects
+
+Exit criteria:
+
+- multiple analysts can use the product without losing personalization
+
+### M8: Interoperability
+
+- add STIX, MISP, or OpenCTI-aligned export paths
+- selectively add import and connector support where it improves workflow
+
+Exit criteria:
+
+- IntelDesk can participate in a broader CTI ecosystem without becoming a clone of those platforms
+
+## Risks And Mitigations
+
+### Risk: Building A Generic Dashboard
+
+Mitigation:
+
+- keep the Feedly-like monitoring workflow central
+- make cards and agents first-class concepts
+
+### Risk: Losing The IntelDesk Differentiator
+
+Mitigation:
+
+- keep cases stronger than in typical monitoring products
+- build follow-through, notes, and deltas as a core layer
+
+### Risk: Scope Creep Into Full CTI Platform Complexity
+
+Mitigation:
+
+- borrow MISP and OpenCTI data ideas gradually
+- do not force graph-first UX or enterprise sharing complexity into v1
+
+### Risk: Low-Signal Discovery
+
+Mitigation:
+
+- keep discovery explainable
+- treat community sources as pointers
+- show why a source or card surfaced

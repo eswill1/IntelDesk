@@ -1,62 +1,65 @@
 # IntelDesk
 
-> A local-first threat intel research workbench for tracking incidents, sources, and deltas without losing provenance.
+> A Feedly-like threat intelligence platform with first-class case tracking.
 
-IntelDesk is built for a single analyst who reads across scattered, uneven sources and needs a durable place to turn that chaos into trackable cases. The product favors provenance, clustering, and change detection over feeds, engagement, or client workflow.
+IntelDesk is being scoped as a threat intelligence product for analysts who want the speed of Feedly Threat Intelligence for information gathering, but need a stronger place to follow incidents, build context, and keep durable investigation records.
 
-## Current Direction
+The product direction is:
 
-This repo now starts as a local-first web app:
+- `Threat Landscape` for prioritized monitoring
+- `Agents` for saved monitors and recurring research lenses
+- `Intel Cards` for CVEs, attacks, malware, actors, vendors, and campaigns
+- `Cases` for tracked investigations with notes, timelines, and deltas
+- `Sources` and `Briefs` as supporting workflow surfaces
 
-- `React + Vite + TypeScript` for a fast product shell
-- `IndexedDB` for local persistence with a multi-user-ready analyst model
-- background ingestion and extraction workers planned behind the UI shell
-- a three-surface workbench centered on `Inbox`, `Cases`, `Sources`, and `Search`
+Current repo state:
 
-The first implementation target is a working research cockpit, not a backend platform.
+- `React + Vite + TypeScript` frontend prototype
+- `IndexedDB` for local analyst state in the current build
+- a lightweight preview and seed API for `Add URL`
+- deployment path already working on a small VPS behind `Nginx`
 
 ## Documentation
 
 | Document | Description |
 |---|---|
-| [DESIGN_BIBLE.md](./DESIGN_BIBLE.md) | Visual language, workbench interaction rules, and content tone |
-| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | Repo-specific architecture, milestones, and data model direction |
+| [PRODUCT_STRATEGY.md](./PRODUCT_STRATEGY.md) | Product thesis, benchmark takeaways, user workflows, and v1 scope |
+| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | Architecture, milestones, data model direction, and rollout plan |
+| [DESIGN_BIBLE.md](./DESIGN_BIBLE.md) | UX, visual language, interaction rules, and component behavior |
 
 ## Product Principles
 
-- Discovery lives upstream; IntelDesk stores the record.
-- Threads must reduce noise, not repackage it.
-- Sources come before summaries.
-- The right default question is: what changed since last view?
-- The product remains single-user and local-first for v1.
+- Lean into the Feedly workflow for collection, monitoring, and prioritization.
+- Make `Cases` the durable differentiator once a signal matters enough to follow.
+- Keep every important assertion source-backed and time-stamped.
+- Show what changed since last view before showing everything else.
+- Build multi-user readiness into the model without forcing heavy enterprise complexity on day one.
 
 ## Local Bootstrap
 
 1. Install dependencies with `npm install`
 2. Start the app shell with `npm run dev`
-3. Build with `npm run build`
+3. Start the intake API with `npm run dev:api`
+4. Build with `npm run build`
 
-## Backend Preview API
+## Current Intake API
 
-IntelDesk now includes a small preview API for `Add URL` at `server/intakePreviewServer.mjs`.
+The current preview and seed API lives at `server/intakePreviewServer.mjs`.
 
-- Start it with `npm run dev:api`
-- It listens on `127.0.0.1:4100`
+- it listens on `127.0.0.1:4100`
 - Vite proxies `/api/*` to that port during local development
-- Set `INTELDESK_API_DATA_DIR` if you want seed jobs persisted outside the current release directory
+- set `INTELDESK_API_DATA_DIR` if you want seed jobs persisted outside the current release directory
 
-The current endpoints are:
+Current endpoints:
 
 - `POST /api/intake/preview`
 - `POST /api/intake/seed`
 - `GET /api/intake/jobs/:jobId`
 
-They provide server-side URL fetch, best-effort metadata extraction, outbound-link discovery, and a first-pass seed job model so `Add URL` can evolve into a seed-and-expand workflow instead of staying a manual form forever.
-
 Current `Add URL` behavior:
 
 - `Add to Inbox` creates a local thread and source item immediately
 - `Seed & Expand` creates the same local thread, then asks the backend to fetch the seed URL and expand related sources from outbound links
-- completed expansion jobs enrich the existing local thread with discovered sources and re-surface it as a meaningful delta
+- completed expansion jobs enrich the local thread with discovered related sources and resurface it as a meaningful delta
 
-The current UI is a high-fidelity shell with representative data, intended to lock the interaction model before ingestion and persistence land.
+This repo is still an early product prototype, but the docs now treat IntelDesk as a real hosted threat intelligence product target rather than only a local research workbench.

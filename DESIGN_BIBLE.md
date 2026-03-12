@@ -2,82 +2,206 @@
 
 ## Product Character
 
-IntelDesk should feel like a serious analyst workbench:
+IntelDesk should feel like a threat intelligence cockpit, not a generic dashboard and not a doomscroll feed.
 
-- calm, dense, and readable over long sessions
-- provenance-first instead of summary-first
-- confident without spectacle
-- structured enough for daily use, but never bureaucratic
+It should combine two moods:
 
-The visual metaphor is not a social feed or SaaS dashboard. It is a desk with folders, receipts, status marks, and active threads of inquiry.
+- `Feedly-like monitoring`: broad awareness, fast scanning, strong prioritization
+- `Workbench follow-through`: receipts, timelines, notes, and ongoing context
+
+The product should feel:
+
+- calm
+- dense but readable
+- operational
+- source-backed
+- built for repeat daily use
+
+## Product Posture
+
+The home experience should say:
+
+- `Here is what matters`
+- `Here is what changed`
+- `Here is what you should do next`
+
+It should not say:
+
+- `Here is an endless pile of articles`
 
 ## Tone
 
-- Use factual, neutral language.
-- Prefer "developing", "corroborated", and "disputed" over dramatic language.
-- Put the source and timestamp close to every assertion.
-- Treat uncertainty as a first-class UI state.
+- use factual, neutral language
+- prefer `developing`, `corroborated`, `disputed`, and `watching`
+- keep timestamps and provenance near every important assertion
+- treat uncertainty as a first-class UI state
+- avoid hype language, fear language, and vague AI confidence theater
 
-## Layout
+## Information Architecture
 
-Primary layout:
+Primary surfaces:
 
-- left rail for navigation and session context
-- main pane for triage lists
-- right pane for details, metadata, and actions
+- `Threat Landscape`
+- `Agents`
+- `Cases`
+- `Sources`
+- `Library`
+- `Briefs`
 
-This structure should collapse cleanly on smaller screens without hiding the current object or its key actions.
+Support surfaces:
 
-## Interaction Rules
+- global search
+- settings
+- add URL and add feed flows
 
-- `Only Delta` is a primary control, not an advanced filter.
-- Thread cards must show what changed before they show everything else.
-- Cases should reopen with context restored quickly: status, delta, last note, and latest timeline events.
-- Source controls must stay lightweight: promote, demote, mute, tag.
-- Keyboard support matters. At minimum: `j`, `k`, `enter`, `s`, `m`.
+## Layout Principles
+
+Desktop should usually follow a three-zone structure:
+
+- left rail for navigation, saved views, and agent access
+- main pane for cards, lists, and detail views
+- right rail for actions, source details, and analyst context
+
+On smaller screens, preserve:
+
+- current object
+- primary next action
+- visible provenance
+
+## Interaction Principles
+
+- `Only Delta` should remain a primary control
+- `Watch` should be lighter weight than `Create Case`
+- the product should make it easy to take one action per card and move on
+- keyboard navigation matters for daily users
+- reopening a case should restore context immediately
+
+Recommended keyboard baseline:
+
+- `j` and `k` or arrow keys for movement
+- `enter` to open
+- `w` to watch
+- `s` to create case or save
+- `m` to mute
+- `a` to add URL
+
+## Core Screen Rules
+
+### Threat Landscape
+
+This is the home screen and should feel like the strongest Feedly-inspired surface.
+
+Rules:
+
+- lead with prioritized cards, not raw source rows
+- support saved views and filter chips
+- mix broad awareness with clear next actions
+- highlight changes since last visit before deep metadata
+
+### Agents
+
+Agents should feel like analyst-defined monitoring lenses.
+
+Rules:
+
+- each agent needs a clear purpose and saved logic
+- show why a card matched the agent
+- make it easy to tune or fork an agent
+
+### Intel Cards
+
+Intel Cards are the main content unit.
+
+Rules:
+
+- show title, type, status, top entities, and what changed
+- include mention count, corroboration count, and canonical sources
+- prioritize timeline, evidence, and next steps over decorative chrome
+- avoid forcing the user to open multiple articles to understand the current state
+
+### Case Workspace
+
+Cases are the follow-through layer.
+
+Rules:
+
+- show status, tags, last note, timeline, and recent delta clearly
+- notes should feel durable and report-friendly, not like chat bubbles
+- preserve the link back to the underlying card and sources
+
+### Source Dossier
+
+Rules:
+
+- keep metrics simple and interpretable
+- show example cards where the source mattered
+- distinguish originality from repetition
+- never imply certainty the system cannot defend
+
+### Brief Builder
+
+Rules:
+
+- make export feel like assembling an analyst-ready output
+- let the user pull in cards, sources, and notes intentionally
+- keep provenance visible in the output workflow
 
 ## Component Rules
 
-### Thread Cards
+### Landscape Cards
 
-- show thread title, status, top entities, and change bullets
-- include corroboration and source counts
-- keep actions visible without hover dependency
+- show object type such as CVE, attack, malware, actor, or vendor
+- show a concise summary and change line
+- expose immediate actions: watch, case, mute, brief
+- include visible source count and freshness
 
 ### Source Rows
 
 - show domain, source type, publication time, and excerpt
-- visually distinguish canonical or primary sources
-- expose the original URL directly
+- distinguish canonical sources clearly
+- expose the original URL without hiding it behind heavy chrome
 
-### Case Panels
+### Timeline Blocks
 
-- show status, tags, delta summary, last note, and timeline
-- notes must feel durable, not chat-like
+- separate automated events from analyst notes
+- make absolute timestamps easy to inspect
+- keep chronology legible in long-running cases
 
-### Source Dossiers
+### Filters And Saved Views
 
-- show simple, interpretable metrics
-- include example threads where the source mattered
-- never imply machine certainty beyond the evidence shown
+- make filters feel powerful but not enterprise-heavy
+- save views with clear names and obvious scope
+- surface current active filters prominently
 
 ## Visual System
 
-- light mode should feel archival and paper-forward, not sterile white
+The visual system should feel more like an intelligence product than a generic SaaS app.
+
+- light mode should feel editorial and paper-forward, not sterile white
 - dark mode should feel instrument-grade, not neon
-- use warm neutrals, muted reds, brass, slate, and moss tones
-- reserve bright color for status and delta emphasis only
+- use warm neutrals, slate, deep ink, rust, moss, and restrained amber
+- reserve brighter color for state, priority, and delta emphasis
 
-Typography should separate reading from metadata:
+Typography:
 
-- serif or literary face for large titles and long-form detail headings
-- pragmatic sans for UI chrome
-- monospace for timestamps, counts, and low-level metadata
+- use a more editorial face for major page titles and major card headers
+- use a pragmatic sans for controls and dense UI surfaces
+- use monospace for timestamps, counts, and technical metadata
+
+## AI And Summary Rules
+
+- AI may assist collection, tagging, and summarization
+- AI must not obscure provenance
+- every important summary should stay close to its supporting sources
+- if uncertainty is high, show that explicitly
+- avoid large free-floating summaries without evidence anchors
 
 ## Anti-Patterns
 
-- infinite scroll
+- infinite scroll as the dominant interaction
+- raw article list as the main home screen
 - card soup with weak hierarchy
-- vague AI summaries without source anchors
-- attention traps like streaks, badges, or endless recommendations
-- over-abstract source scoring that hides the underlying signals
+- vague summaries without sources
+- over-gamified activity chrome
+- black-box source scores with no rationale
+- graph visualizations used as decoration rather than as a real investigation aid
