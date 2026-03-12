@@ -12,6 +12,10 @@ import {
   getThreadQueueMeta,
   sortThreadsForInbox
 } from "./lib/threadWorkflow";
+import {
+  startSeedInvestigation,
+  waitForSeedInvestigationJob
+} from "./lib/seedInvestigation";
 import { workbenchRepository } from "./lib/workbenchRepository";
 import type {
   ManualUrlIntake,
@@ -164,6 +168,23 @@ export default function App() {
     const result = await workbenchRepository.addManualUrl(currentUserId, draft);
     await refreshWorkbench();
     setOnlyDelta(!result.duplicate);
+    setSelectedThreadId(result.threadId);
+    setActiveView("inbox");
+    setIsAddUrlOpen(false);
+  }
+
+  async function handleSeedInvestigation(draft: ManualUrlIntake) {
+    if (!currentUserId) {
+      throw new Error("The local analyst profile is still loading.");
+    }
+
+    const result = await workbenchRepository.addManualUrl(currentUserId, draft);
+    const seedStart = await startSeedInvestigation(draft.url);
+    const completedJob = await waitForSeedInvestigationJob(seedStart.jobId);
+
+    await workbenchRepository.applySeedInvestigation(currentUserId, result.threadId, completedJob);
+    await refreshWorkbench();
+    setOnlyDelta(false);
     setSelectedThreadId(result.threadId);
     setActiveView("inbox");
     setIsAddUrlOpen(false);
@@ -461,6 +482,7 @@ export default function App() {
 
       <AddUrlDialog
         onClose={() => setIsAddUrlOpen(false)}
+        onSeedInvestigation={handleSeedInvestigation}
         onSubmit={handleAddUrl}
         open={isAddUrlOpen}
       />

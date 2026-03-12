@@ -9,7 +9,7 @@ IntelDesk is built for a single analyst who reads across scattered, uneven sourc
 This repo now starts as a local-first web app:
 
 - `React + Vite + TypeScript` for a fast product shell
-- `IndexedDB` planned for local persistence
+- `IndexedDB` for local persistence with a multi-user-ready analyst model
 - background ingestion and extraction workers planned behind the UI shell
 - a three-surface workbench centered on `Inbox`, `Cases`, `Sources`, and `Search`
 
@@ -43,11 +43,20 @@ IntelDesk now includes a small preview API for `Add URL` at `server/intakePrevie
 - Start it with `npm run dev:api`
 - It listens on `127.0.0.1:4100`
 - Vite proxies `/api/*` to that port during local development
+- Set `INTELDESK_API_DATA_DIR` if you want seed jobs persisted outside the current release directory
 
-The current endpoint is:
+The current endpoints are:
 
 - `POST /api/intake/preview`
+- `POST /api/intake/seed`
+- `GET /api/intake/jobs/:jobId`
 
-It performs server-side URL fetch, best-effort metadata extraction, and outbound-link discovery so `Add URL` can evolve into a seed-and-expand workflow instead of staying a manual form forever.
+They provide server-side URL fetch, best-effort metadata extraction, outbound-link discovery, and a first-pass seed job model so `Add URL` can evolve into a seed-and-expand workflow instead of staying a manual form forever.
+
+Current `Add URL` behavior:
+
+- `Add to Inbox` creates a local thread and source item immediately
+- `Seed & Expand` creates the same local thread, then asks the backend to fetch the seed URL and expand related sources from outbound links
+- completed expansion jobs enrich the existing local thread with discovered sources and re-surface it as a meaningful delta
 
 The current UI is a high-fidelity shell with representative data, intended to lock the interaction model before ingestion and persistence land.

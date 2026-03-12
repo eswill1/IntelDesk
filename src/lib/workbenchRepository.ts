@@ -9,6 +9,8 @@ import type {
   CaseFile,
   ManualUrlAddResult,
   ManualUrlIntake,
+  SeedInvestigationJob,
+  SeedInvestigationCandidate,
   SourceRegistryEntry,
   SourceItem,
   SourceType,
@@ -354,6 +356,27 @@ function buildManualRegistryEntry(
   };
 }
 
+function buildSourceItemFromCandidate(candidate: SeedInvestigationCandidate, now: string): SourceItem {
+  const detail = candidate.relationReasons[0]
+    ? `Discovered during seed expansion: ${candidate.relationReasons[0]}.`
+    : "Discovered during seed expansion.";
+
+  return {
+    id: createId("src-seed"),
+    title: candidate.title,
+    url: candidate.url,
+    domain: candidate.domain,
+    author: candidate.author?.trim() || "Unknown",
+    publishedAt: now,
+    fetchedAt: now,
+    sourceType: candidate.sourceType,
+    excerpt: candidate.summary?.trim() || detail,
+    entities: cleanEntities(candidate.entities),
+    isCanonical: false,
+    changed: true
+  };
+}
+
 function mergeRegistryEntry(
   existingEntry: SourceRegistryEntry,
   source: SourceItem,
@@ -369,6 +392,67 @@ function mergeRegistryEntry(
     examples: nextExamples,
     emerging: existingEntry.savedThreadCount + 1 < 4 ? true : existingEntry.emerging
   };
+}
+
+function upsertRegistryEntries(
+  existingEntries: SourceRegistryEntry[],
+  sources: SourceItem[],
+  threadTitle: string,
+  now: string
+) {
+  const entriesByDomain = new Map(existingEntries.map((entry) => [entry.domain, entry]));
+
+  sources.forEach((source) => {
+    const existingEntry = entriesByDomain.get(source.domain);
+    const nextEntry = existingEntry
+      ? mergeRegistryEntry(existingEntry, source, threadTitle)
+      : buildManualRegistryEntry(source, threadTitle, now);
+
+    entriesByDomain.set(source.domain, nextEntry);
+  });
+
+  return Array.from(entriesByDomain.values());
+}
+
+function buildSeedExpansionHighlights(
+  candidateCount: number,
+  candidateDomains: string[],
+  existingHighlights: string[]
+) {
+  const summaryHighlight =
+    candidateCount > 0
+      ? `Seed expansion found ${candidateCount} related URLs${candidateDomains.length ? ` across ${candidateDomains.slice(0, 3).join(", ")}` : ""}.`
+      : "Seed expansion completed without adding new related URLs.";
+
+  return [summaryHighlight, ...existingHighlights].slice(0, 4);
+}
+
+function buildSeedExpansionNotes(
+  job: SeedInvestigationJob,
+  existingNotes: string[]
+) {
+  const candidateSummary =
+    job.candidates.length > 0
+      ? `Seed investigation added ${job.candidates.length} related sources from discovered links.`
+      : "Seed investigation ran but did not find additional related sources worth merging.";
+
+  const leadingReasons = job.candidates
+    .slice(0, 3)
+    .map((candidate) => `${candidate.domain}: ${candidate.relationReasons[0] ?? "related source"}`);
+
+  return [candidateSummary, ...leadingReasons, ...existingNotes].slice(0, 6);
+}
+
+function shouldReplaceThreadSummary(currentSummary: string, seedSummary?: string) {
+  if (!seedSummary?.trim()) {
+    return false;
+  }
+
+  return (
+    currentSummary.includes("added manually") ||
+    currentSummary.includes("needs broader corroboration") ||
+    currentSummary.includes("Derived from")
+  );
 }
 
 async function getCurrentUser(database: IDBDatabase, userId: string) {
@@ -631,6 +715,120 @@ export const workbenchRepository = {
         sourceId: source.id,
         duplicate: false
       };
+    });
+  },
+
+  async applySeedInvestigation(
+    userId: string,
+    threadId: string,
+    job: SeedInvestigationJob
+  ) {
+    return withDatabase(async (database) => {
+      const lookup = database.transaction(
+        [storeNames.threads, storeNames.sourceRegistry, storeNames.threadStates],
+        "readonly"
+      );
+      const threadRequest = lookup.objectStore(storeNames.threads).get(threadId);
+      const registryRequest = lookup.objectStore(storeNames.sourceRegistry).getAll();
+      const threadStatesRequest = lookup.objectStore(storeNames.threadStates).getAll();
+      const thread = (await requestToPromise(threadRequest)) as Thread | undefined;
+      const registryEntries = (await requestToPromise(registryRequest)) as SourceRegistryEntry[];
+      const threadStates = (await requestToPromise(threadStatesRequest)) as ThreadState[];
+
+      await transactionDone(lookup);
+
+      if (!thread) {
+        throw new Error(`Thread ${threadId} was not found.`);
+      }
+
+      const now = new Date().toISOString();
+      const existingThreadState = threadStates.find(
+        (item) => item.userId === userId && item.threadId === threadId
+      );
+      const existingSourcesByUrl = new Map(thread.sources.map((source) => [source.url, source]));
+      const canonicalSource =
+        thread.sources.find((source) => source.isCanonical) ?? thread.sources[0];
+      const updatedCanonicalSource = canonicalSource
+        ? {
+            ...canonicalSource,
+            title: job.seed?.title?.trim() || canonicalSource.title,
+            author: job.seed?.author?.trim() || canonicalSource.author,
+            sourceType: job.seed?.sourceType || canonicalSource.sourceType,
+            excerpt: job.seed?.summary?.trim() || canonicalSource.excerpt,
+            entities: cleanEntities([...(job.seed?.entities ?? []), ...canonicalSource.entities]),
+            fetchedAt: now
+          }
+        : undefined;
+      const newRelatedSources = job.candidates
+        .filter((candidate) => !existingSourcesByUrl.has(candidate.url))
+        .map((candidate) => buildSourceItemFromCandidate(candidate, now));
+      const mergedSources = thread.sources.map((source) =>
+        updatedCanonicalSource && source.id === updatedCanonicalSource.id ? updatedCanonicalSource : source
+      );
+
+      newRelatedSources.forEach((source) => {
+        mergedSources.push(source);
+      });
+
+      const mergedEntities = cleanEntities([
+        ...thread.entities,
+        ...(job.seed?.entities ?? []),
+        ...newRelatedSources.flatMap((source) => source.entities)
+      ]);
+      const uniqueDomains = new Set(mergedSources.map((source) => source.domain));
+      const relatedDomains = Array.from(
+        new Set(newRelatedSources.map((source) => source.domain))
+      );
+      const nextThread: Thread = {
+        ...thread,
+        title: job.seed?.title?.trim() || thread.title,
+        summary: shouldReplaceThreadSummary(thread.summary, job.seed?.summary)
+          ? job.seed?.summary?.trim() || thread.summary
+          : thread.summary,
+        lastUpdated: now,
+        sourceCount: mergedSources.length,
+        corroborationCount: Math.max(0, uniqueDomains.size - 1),
+        entities: mergedEntities,
+        changeHighlights: buildSeedExpansionHighlights(
+          newRelatedSources.length,
+          relatedDomains,
+          thread.changeHighlights
+        ),
+        sources: mergedSources,
+        analystNotes: buildSeedExpansionNotes(job, thread.analystNotes)
+      };
+      const nextRegistryEntries = upsertRegistryEntries(
+        registryEntries,
+        updatedCanonicalSource ? [updatedCanonicalSource, ...newRelatedSources] : newRelatedSources,
+        nextThread.title,
+        now
+      );
+      const transaction = database.transaction(
+        [storeNames.threads, storeNames.sourceRegistry, storeNames.threadStates],
+        "readwrite"
+      );
+      const threadStore = transaction.objectStore(storeNames.threads);
+      const sourceStore = transaction.objectStore(storeNames.sourceRegistry);
+      const threadStateStore = transaction.objectStore(storeNames.threadStates);
+
+      threadStore.put(nextThread);
+      nextRegistryEntries.forEach((entry) => sourceStore.put(entry));
+      threadStateStore.put({
+        id: existingThreadState?.id ?? buildThreadStateId(userId, threadId),
+        userId,
+        threadId,
+        state: existingThreadState?.state ?? "new",
+        firstSeenAt: existingThreadState?.firstSeenAt ?? now,
+        lastOpenedAt: existingThreadState?.lastOpenedAt,
+        lastReviewedAt: existingThreadState?.lastReviewedAt,
+        lastMeaningfulDeltaAt: now,
+        lastReactivatedAt:
+          existingThreadState?.state === "reviewed" ? now : existingThreadState?.lastReactivatedAt,
+        caseId: existingThreadState?.caseId,
+        updatedAt: now
+      });
+
+      await transactionDone(transaction);
     });
   }
 };

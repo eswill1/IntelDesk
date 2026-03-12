@@ -1,9 +1,17 @@
 import { createServer } from "node:http";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 const port = Number(process.env.INTELDESK_API_PORT || 4100);
 const host = process.env.INTELDESK_API_HOST || "127.0.0.1";
+const dataDir =
+  process.env.INTELDESK_API_DATA_DIR || fileURLToPath(new URL("./data", import.meta.url));
+const seedJobsPath = `${dataDir}/seed-jobs.json`;
 const requestTimeoutMs = 6500;
+const maxOutboundLinks = 8;
+const maxExpansionCandidates = 6;
 const cvePattern = /\bCVE-\d{4}-\d{4,7}\b/gi;
+let jobMutationChain = Promise.resolve();
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
@@ -18,6 +26,10 @@ function sendJson(response, statusCode, payload) {
 
 function uniqueValues(values) {
   return Array.from(new Set(values.map((item) => item.trim()).filter(Boolean)));
+}
+
+function createId(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function normalizeUrlInput(rawUrl) {
@@ -161,6 +173,14 @@ function readAuthor(html) {
   ]);
 }
 
+function isLikelyNoiseLink(resolvedUrl, label) {
+  const noisyTerms = ["privacy", "terms", "contact", "about", "copyright", "cookies"];
+  const path = resolvedUrl.pathname.toLowerCase();
+  const normalizedLabel = label.toLowerCase();
+
+  return noisyTerms.some((term) => path.includes(term) || normalizedLabel.includes(term));
+}
+
 function extractOutboundLinks(html, baseUrl) {
   const links = [];
   const hrefPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
@@ -170,7 +190,12 @@ function extractOutboundLinks(html, baseUrl) {
     const href = match[1];
     const rawLabel = stripHtml(match[2]);
 
-    if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("javascript:")) {
+    if (
+      !href ||
+      href.startsWith("#") ||
+      href.startsWith("mailto:") ||
+      href.startsWith("javascript:")
+    ) {
       continue;
     }
 
@@ -185,17 +210,23 @@ function extractOutboundLinks(html, baseUrl) {
         continue;
       }
 
+      const label = rawLabel || deriveTitleFromUrl(resolved);
+
+      if (isLikelyNoiseLink(resolved, label)) {
+        continue;
+      }
+
       links.push({
         url: resolved.toString(),
         domain: resolved.hostname.replace(/^www\./, ""),
-        label: rawLabel || deriveTitleFromUrl(resolved)
+        label
       });
     } catch {
       // Ignore malformed link targets.
     }
   }
 
-  return Array.from(new Map(links.map((link) => [link.url, link])).values()).slice(0, 8);
+  return Array.from(new Map(links.map((link) => [link.url, link])).values()).slice(0, maxOutboundLinks);
 }
 
 function deriveMetadata(url) {
@@ -252,10 +283,201 @@ async function fetchPreview(url) {
       strategy: "server",
       message: `Fetched page metadata on the server and discovered ${outboundLinks.length} outbound links.`
     };
-  } catch {
+  } catch (error) {
+    console.error("preview fetch failed", error);
     return fallback;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+function getSourceTypeWeight(sourceType) {
+  switch (sourceType) {
+    case "advisory":
+      return 18;
+    case "gov":
+      return 17;
+    case "researcher":
+      return 15;
+    case "repo":
+      return 11;
+    case "community":
+      return 4;
+    default:
+      return 0;
+  }
+}
+
+function buildSeedCandidate(seedPreview, linkPreview, link) {
+  const sharedEntities = linkPreview.entities.filter((entity) =>
+    seedPreview.entities.includes(entity)
+  );
+  const reasons = [];
+
+  if (sharedEntities.length) {
+    reasons.push(`Shared entities: ${sharedEntities.join(", ")}`);
+  }
+
+  if (link.domain !== new URL(seedPreview.normalizedUrl).hostname.replace(/^www\./, "")) {
+    reasons.push(`Independent source domain: ${link.domain}`);
+  }
+
+  if (linkPreview.sourceType) {
+    reasons.push(`Source type looks ${linkPreview.sourceType}.`);
+  }
+
+  if (link.label && link.label !== linkPreview.title) {
+    reasons.push(`Linked from the seed source as "${link.label}".`);
+  }
+
+  if (reasons.length === 0) {
+    reasons.push("Discovered as an outbound link from the seed source.");
+  }
+
+  const score =
+    sharedEntities.length * 35 +
+    getSourceTypeWeight(linkPreview.sourceType) +
+    (linkPreview.strategy === "server" ? 8 : 2) +
+    (link.domain !== new URL(seedPreview.normalizedUrl).hostname.replace(/^www\./, "") ? 10 : 0);
+
+  return {
+    url: linkPreview.normalizedUrl,
+    domain: link.domain,
+    title: linkPreview.title || link.label,
+    summary: linkPreview.summary,
+    author: linkPreview.author,
+    entities: linkPreview.entities,
+    sourceType: linkPreview.sourceType || "researcher",
+    score,
+    relationReasons: reasons,
+    strategy: linkPreview.strategy
+  };
+}
+
+async function expandSeedPreview(seedPreview) {
+  const previews = await Promise.all(
+    (seedPreview.outboundLinks || [])
+      .slice(0, maxExpansionCandidates)
+      .map(async (link) => {
+        try {
+          const preview = await fetchPreview(new URL(link.url));
+          return buildSeedCandidate(seedPreview, preview, link);
+        } catch {
+          return null;
+        }
+      })
+  );
+
+  return previews
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, maxExpansionCandidates);
+}
+
+async function ensureDataDir() {
+  await mkdir(dataDir, { recursive: true });
+}
+
+async function readSeedJobs() {
+  await ensureDataDir();
+
+  try {
+    const raw = await readFile(seedJobsPath, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return [];
+    }
+
+    throw error;
+  }
+}
+
+async function writeSeedJobs(jobs) {
+  await ensureDataDir();
+  await writeFile(seedJobsPath, JSON.stringify(jobs, null, 2));
+}
+
+function mutateSeedJobs(mutator) {
+  jobMutationChain = jobMutationChain
+    .catch(() => undefined)
+    .then(async () => {
+      const jobs = await readSeedJobs();
+      const result = await mutator(jobs);
+      await writeSeedJobs(jobs);
+      return result;
+    });
+
+  return jobMutationChain;
+}
+
+async function getSeedJob(jobId) {
+  const jobs = await readSeedJobs();
+  return jobs.find((job) => job.id === jobId);
+}
+
+function updateSeedJob(jobId, updater) {
+  return mutateSeedJobs((jobs) => {
+    const jobIndex = jobs.findIndex((job) => job.id === jobId);
+
+    if (jobIndex === -1) {
+      throw new Error(`Seed job ${jobId} was not found.`);
+    }
+
+    const nextJob = updater(jobs[jobIndex]);
+    jobs[jobIndex] = nextJob;
+    return nextJob;
+  });
+}
+
+async function createSeedJob(seedUrl) {
+  const now = new Date().toISOString();
+  const job = {
+    id: createId("seed-job"),
+    status: "queued",
+    seedUrl,
+    createdAt: now,
+    updatedAt: now,
+    candidates: []
+  };
+
+  await mutateSeedJobs((jobs) => {
+    jobs.push(job);
+    return job;
+  });
+
+  return job;
+}
+
+async function processSeedInvestigationJob(jobId) {
+  try {
+    const runningAt = new Date().toISOString();
+    const runningJob = await updateSeedJob(jobId, (job) => ({
+      ...job,
+      status: "running",
+      updatedAt: runningAt
+    }));
+    const seedPreview = await fetchPreview(new URL(runningJob.seedUrl));
+    const candidates = await expandSeedPreview(seedPreview);
+    const completedAt = new Date().toISOString();
+
+    await updateSeedJob(jobId, (job) => ({
+      ...job,
+      status: "completed",
+      updatedAt: completedAt,
+      seed: seedPreview,
+      candidates
+    }));
+  } catch (error) {
+    const failedAt = new Date().toISOString();
+
+    await updateSeedJob(jobId, (job) => ({
+      ...job,
+      status: "failed",
+      updatedAt: failedAt,
+      error: error instanceof Error ? error.message : "Seed investigation failed."
+    }));
   }
 }
 
@@ -316,8 +538,60 @@ const server = createServer(async (request, response) => {
     }
   }
 
+  if (request.method === "POST" && requestUrl.pathname === "/api/intake/seed") {
+    try {
+      const rawBody = await readRequestBody(request);
+      const payload = JSON.parse(rawBody || "{}");
+      const normalizedUrl = normalizeUrlInput(payload.url).toString();
+      const job = await createSeedJob(normalizedUrl);
+
+      queueMicrotask(() => {
+        void processSeedInvestigationJob(job.id);
+      });
+
+      sendJson(response, 202, {
+        jobId: job.id,
+        status: job.status
+      });
+      return;
+    } catch (error) {
+      sendJson(response, 400, {
+        error: error instanceof Error ? error.message : "Unable to start seed investigation."
+      });
+      return;
+    }
+  }
+
+  if (request.method === "GET" && requestUrl.pathname.startsWith("/api/intake/jobs/")) {
+    const jobId = requestUrl.pathname.replace("/api/intake/jobs/", "").trim();
+
+    if (!jobId) {
+      sendJson(response, 400, { error: "Missing job id." });
+      return;
+    }
+
+    try {
+      const job = await getSeedJob(jobId);
+
+      if (!job) {
+        sendJson(response, 404, { error: "Seed job not found." });
+        return;
+      }
+
+      sendJson(response, 200, job);
+      return;
+    } catch (error) {
+      sendJson(response, 500, {
+        error: error instanceof Error ? error.message : "Unable to read seed job."
+      });
+      return;
+    }
+  }
+
   sendJson(response, 404, { error: "Not found." });
 });
+
+await ensureDataDir();
 
 server.listen(port, host, () => {
   console.log(`IntelDesk preview API listening on http://${host}:${port}`);

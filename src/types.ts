@@ -117,6 +117,30 @@ export interface ManualUrlPreviewLink {
   label: string;
 }
 
+export interface SeedInvestigationCandidate {
+  url: string;
+  domain: string;
+  title: string;
+  summary?: string;
+  author?: string;
+  entities: string[];
+  sourceType: SourceType;
+  score: number;
+  relationReasons: string[];
+  strategy: "server" | "fetched" | "derived";
+}
+
+export interface SeedInvestigationJob {
+  id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  seedUrl: string;
+  createdAt: string;
+  updatedAt: string;
+  seed?: ManualUrlMetadata;
+  candidates: SeedInvestigationCandidate[];
+  error?: string;
+}
+
 export interface WorkspaceUser {
   id: string;
   name: string;

@@ -7,6 +7,7 @@ interface AddUrlDialogProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (draft: ManualUrlIntake) => Promise<void>;
+  onSeedInvestigation: (draft: ManualUrlIntake) => Promise<void>;
 }
 
 interface AutoManagedFields {
@@ -46,7 +47,12 @@ const initialAutoManaged: AutoManagedFields = {
   sourceType: false
 };
 
-export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
+export function AddUrlDialog({
+  open,
+  onClose,
+  onSubmit,
+  onSeedInvestigation
+}: AddUrlDialogProps) {
   const [draft, setDraft] = useState<ManualUrlIntake>(initialDraft);
   const [entityInput, setEntityInput] = useState("");
   const [error, setError] = useState("");
@@ -56,6 +62,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
   >([]);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
   const [autoManaged, setAutoManaged] = useState<AutoManagedFields>(initialAutoManaged);
   const [lastAnalyzedUrl, setLastAnalyzedUrl] = useState("");
   const draftRef = useRef(draft);
@@ -84,6 +91,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
       setDiscoveredLinks([]);
       setIsFetchingMetadata(false);
       setIsSaving(false);
+      setIsSeeding(false);
       setAutoManaged(initialAutoManaged);
       setLastAnalyzedUrl("");
     }
@@ -221,6 +229,33 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
           : "Unable to add the URL right now."
       );
       setIsSaving(false);
+    }
+  }
+
+  async function handleSeedInvestigation() {
+    if (!draft.url.trim()) {
+      setError("URL is required.");
+      return;
+    }
+
+    setIsSeeding(true);
+    setError("");
+
+    try {
+      await onSeedInvestigation({
+        ...draft,
+        entities: entityInput
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      });
+    } catch (submissionError) {
+      setError(
+        submissionError instanceof Error
+          ? submissionError.message
+          : "Unable to seed the investigation right now."
+      );
+      setIsSeeding(false);
     }
   }
 
@@ -404,10 +439,27 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
           {error ? <p className="form-error">{error}</p> : null}
 
           <div className="detail-actions">
-            <button className="ghost-button" disabled={isSaving} type="button" onClick={onClose}>
+            <button
+              className="ghost-button"
+              disabled={isSaving || isSeeding}
+              type="button"
+              onClick={onClose}
+            >
               Cancel
             </button>
-            <button className="ghost-button primary-button" disabled={isSaving} type="submit">
+            <button
+              className="ghost-button"
+              disabled={isSaving || isSeeding}
+              type="button"
+              onClick={() => void handleSeedInvestigation()}
+            >
+              {isSeeding ? "Seeding..." : "Seed & Expand"}
+            </button>
+            <button
+              className="ghost-button primary-button"
+              disabled={isSaving || isSeeding}
+              type="submit"
+            >
               {isSaving ? "Adding..." : "Add to Inbox"}
             </button>
           </div>
