@@ -1,11 +1,9 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { AddUrlDialog } from "./components/AddUrlDialog";
-import { AgentsView } from "./components/AgentsView";
 import { CasesView } from "./components/CasesView";
-import { SearchView } from "./components/SearchView";
+import { LibraryView } from "./components/LibraryView";
+import { MonitorsView } from "./components/MonitorsView";
 import { Sidebar } from "./components/Sidebar";
-import { SourcesView } from "./components/SourcesView";
-import { ThreatLandscapeView } from "./components/ThreatLandscapeView";
 import { TopBar } from "./components/TopBar";
 import { agentDefinitions } from "./data/mockData";
 import { buildAgentViews } from "./lib/agents";
@@ -14,7 +12,6 @@ import {
   waitForSeedInvestigationJob
 } from "./lib/seedInvestigation";
 import {
-  buildThreadQueueSections,
   buildThreadWorkflowMap,
   getThreadQueueMeta,
   sortThreadsForInbox
@@ -45,19 +42,18 @@ function isNeedsReviewQueue(queueState?: ThreadQueueState) {
 
 export default function App() {
   const [snapshot, setSnapshot] = useState<WorkbenchSnapshot | null>(null);
-  const [activeView, setActiveView] = useState<NavView>("landscape");
+  const [activeView, setActiveView] = useState<NavView>("monitors");
   const [selectedThreadId, setSelectedThreadId] = useState("");
   const [selectedCaseId, setSelectedCaseId] = useState("");
   const [selectedSourceId, setSelectedSourceId] = useState("");
-  const [selectedAgentId, setSelectedAgentId] = useState("");
-  const [landscapeAgentId, setLandscapeAgentId] = useState("");
+  const [selectedMonitorId, setSelectedMonitorId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedResultId, setSelectedResultId] = useState("");
   const [onlyDelta, setOnlyDelta] = useState(true);
   const [darkMode, setDarkMode] = useState<boolean>(readStoredTheme);
   const [isAddUrlOpen, setIsAddUrlOpen] = useState(false);
   const deferredQuery = useDeferredValue(searchQuery);
-  const previousLandscapeSelectionRef = useRef<string | null>(null);
+  const previousMonitorSelectionRef = useRef<string | null>(null);
   const skipAutoReviewThreadRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -93,19 +89,17 @@ export default function App() {
     threads.filter((thread) => threadWorkflowMap[thread.id]?.queueState !== "muted"),
     threadWorkflowMap
   );
-  const agentViews = buildAgentViews(agentDefinitions, threads, threadWorkflowMap);
-  const selectedAgent = agentViews.find((item) => item.id === selectedAgentId) ?? agentViews[0] ?? null;
-  const landscapeAgent =
-    agentViews.find((item) => item.id === landscapeAgentId) ?? null;
+  const monitorViews = buildAgentViews(agentDefinitions, threads, threadWorkflowMap);
   const reviewableCards = onlyDelta
     ? allCards.filter((thread) => isNeedsReviewQueue(threadWorkflowMap[thread.id]?.queueState))
     : allCards;
-  const visibleThreads = landscapeAgent
+  const visibleThreads = selectedMonitorId
     ? reviewableCards.filter((thread) =>
-        landscapeAgent.matches.some((match) => match.threadId === thread.id)
+        monitorViews
+          .find((monitor) => monitor.id === selectedMonitorId)
+          ?.matches.some((match) => match.threadId === thread.id)
       )
     : reviewableCards;
-  const queueSections = buildThreadQueueSections(visibleThreads, threadWorkflowMap);
   const watchedThreads = allCards.filter(
     (thread) => threadWorkflowMap[thread.id]?.state === "watching"
   );
@@ -129,17 +123,14 @@ export default function App() {
         tags: [...thread.entities, queueMeta.badge.toLowerCase()]
       };
     }),
-    ...agentViews.map((agent) => ({
-      id: agent.id,
-      kind: "agent" as const,
-      title: agent.title,
-      subtitle: `${agent.lens} · ${agent.threadCount} cards`,
-      context: `${agent.summary} ${agent.objective} ${agent.matches
-        .slice(0, 2)
-        .flatMap((match) => match.reasons)
-        .join(" ")}`,
-      updatedAt: agent.latestActivityAt ?? threads[0]?.lastUpdated ?? new Date().toISOString(),
-      tags: [agent.priority, ...agent.entityHints.slice(0, 3)]
+    ...monitorViews.map((monitor) => ({
+      id: monitor.id,
+      kind: "monitor" as const,
+      title: monitor.title,
+      subtitle: `${monitor.lens} · ${monitor.threadCount} cards`,
+      context: `${monitor.summary} ${monitor.objective}`,
+      updatedAt: monitor.latestActivityAt ?? threads[0]?.lastUpdated ?? new Date().toISOString(),
+      tags: [monitor.priority, ...monitor.entityHints.slice(0, 3)]
     })),
     ...cases.map((item) => ({
       id: item.id,
@@ -194,9 +185,9 @@ export default function App() {
     const result = await workbenchRepository.addManualUrl(currentUserId, draft);
     await refreshWorkbench();
     setOnlyDelta(!result.duplicate);
-    setLandscapeAgentId("");
+    setSelectedMonitorId("");
     setSelectedThreadId(result.threadId);
-    setActiveView("landscape");
+    setActiveView("monitors");
     setIsAddUrlOpen(false);
   }
 
@@ -212,29 +203,17 @@ export default function App() {
     await workbenchRepository.applySeedInvestigation(currentUserId, result.threadId, completedJob);
     await refreshWorkbench();
     setOnlyDelta(false);
-    setLandscapeAgentId("");
+    setSelectedMonitorId("");
     setSelectedThreadId(result.threadId);
-    setActiveView("landscape");
+    setActiveView("monitors");
     setIsAddUrlOpen(false);
   }
 
-  function openThreadInLandscape(threadId: string, agentId?: string) {
-    setLandscapeAgentId(agentId ?? "");
+  function openThreadInMonitors(threadId: string) {
+    setSelectedMonitorId("");
     setOnlyDelta(false);
     setSelectedThreadId(threadId);
-    setActiveView("landscape");
-  }
-
-  function openAgentInLandscape(agentId: string) {
-    const agent = agentViews.find((item) => item.id === agentId);
-    const firstMatchId = agent?.matches[0]?.threadId;
-
-    setLandscapeAgentId(agentId);
-    setOnlyDelta(false);
-    if (firstMatchId) {
-      setSelectedThreadId(firstMatchId);
-    }
-    setActiveView("landscape");
+    setActiveView("monitors");
   }
 
   function toggleWatchThread(threadId: string) {
@@ -283,7 +262,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!currentUserId || activeView !== "landscape" || !selectedThreadId) {
+    if (!currentUserId || activeView !== "monitors" || !selectedThreadId) {
       return;
     }
 
@@ -298,10 +277,10 @@ export default function App() {
       return;
     }
 
-    const currentLandscapeSelection = activeView === "landscape" ? selectedThreadId : null;
-    const previousThreadId = previousLandscapeSelectionRef.current;
+    const currentMonitorSelection = activeView === "monitors" ? selectedThreadId : null;
+    const previousThreadId = previousMonitorSelectionRef.current;
 
-    if (previousThreadId && previousThreadId !== currentLandscapeSelection) {
+    if (previousThreadId && previousThreadId !== currentMonitorSelection) {
       if (skipAutoReviewThreadRef.current === previousThreadId) {
         skipAutoReviewThreadRef.current = null;
       } else if (isNeedsReviewQueue(threadWorkflowMap[previousThreadId]?.queueState)) {
@@ -312,7 +291,7 @@ export default function App() {
       }
     }
 
-    previousLandscapeSelectionRef.current = currentLandscapeSelection;
+    previousMonitorSelectionRef.current = currentMonitorSelection;
   }, [activeView, currentUserId, selectedThreadId, threadWorkflowMap]);
 
   useEffect(() => {
@@ -322,16 +301,10 @@ export default function App() {
   }, [selectedThreadId, visibleThreads]);
 
   useEffect(() => {
-    if (!agentViews.some((item) => item.id === selectedAgentId)) {
-      setSelectedAgentId(agentViews[0]?.id ?? "");
+    if (selectedMonitorId && !monitorViews.some((monitor) => monitor.id === selectedMonitorId)) {
+      setSelectedMonitorId("");
     }
-  }, [agentViews, selectedAgentId]);
-
-  useEffect(() => {
-    if (landscapeAgentId && !agentViews.some((item) => item.id === landscapeAgentId)) {
-      setLandscapeAgentId("");
-    }
-  }, [agentViews, landscapeAgentId]);
+  }, [monitorViews, selectedMonitorId]);
 
   useEffect(() => {
     if (!cases.some((item) => item.id === selectedCaseId)) {
@@ -363,26 +336,18 @@ export default function App() {
       }
 
       if (event.key === "1") {
-        setActiveView("landscape");
+        setActiveView("monitors");
       }
 
       if (event.key === "2") {
-        setActiveView("agents");
-      }
-
-      if (event.key === "3") {
         setActiveView("cases");
       }
 
-      if (event.key === "4") {
-        setActiveView("sources");
+      if (event.key === "3") {
+        setActiveView("library");
       }
 
-      if (event.key === "5") {
-        setActiveView("search");
-      }
-
-      if (event.key === "j" && activeView === "landscape") {
+      if (event.key === "j" && activeView === "monitors") {
         event.preventDefault();
         const currentIndex = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
         const nextIndex = Math.min(currentIndex + 1, visibleThreads.length - 1);
@@ -392,7 +357,7 @@ export default function App() {
         }
       }
 
-      if (event.key === "k" && activeView === "landscape") {
+      if (event.key === "k" && activeView === "monitors") {
         event.preventDefault();
         const currentIndex = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
         const nextIndex = Math.max(currentIndex - 1, 0);
@@ -402,14 +367,14 @@ export default function App() {
         }
       }
 
-      if (event.key === "d" && activeView === "landscape") {
+      if (event.key === "d" && activeView === "monitors") {
         event.preventDefault();
         setOnlyDelta((current) => !current);
       }
 
       if (
         event.key === "w" &&
-        activeView === "landscape" &&
+        activeView === "monitors" &&
         selectedThreadId &&
         !selectedThreadCaseId
       ) {
@@ -417,19 +382,14 @@ export default function App() {
         toggleWatchThread(selectedThreadId);
       }
 
-      if (event.key === "s" && activeView === "landscape" && selectedThreadId) {
+      if (event.key === "s" && activeView === "monitors" && selectedThreadId) {
         event.preventDefault();
         saveThreadToCase(selectedThreadId);
       }
 
-      if (event.key === "s" && activeView !== "landscape") {
+      if (event.key === "/" && activeView !== "library") {
         event.preventDefault();
-        setActiveView("cases");
-      }
-
-      if (event.key === "/") {
-        event.preventDefault();
-        setActiveView("search");
+        setActiveView("library");
       }
 
       if (event.key === "a" && currentUserId) {
@@ -465,8 +425,8 @@ export default function App() {
 
           <section className="panel list-panel">
             <article className="empty-state">
-              <h4>Loading threat landscape</h4>
-              <p>Opening the local analyst profile, saved monitors, and analyst review state.</p>
+              <h4>Loading monitors</h4>
+              <p>Opening the local analyst profile and restoring the curated feed.</p>
             </article>
           </section>
         </main>
@@ -494,42 +454,26 @@ export default function App() {
           onToggleTheme={() => setDarkMode((current) => !current)}
         />
 
-        {activeView === "landscape" ? (
-          <ThreatLandscapeView
-            agents={agentViews}
-            onlyDelta={onlyDelta}
-            onClearAgent={() => setLandscapeAgentId("")}
-            onSaveThreadToCase={saveThreadToCase}
-            onSelectAgent={setLandscapeAgentId}
-            onSelectThread={setSelectedThreadId}
+        {activeView === "monitors" ? (
+          <MonitorsView
+            cards={visibleThreads}
+            monitors={monitorViews}
+            onSaveCardToCase={saveThreadToCase}
+            onSelectCard={setSelectedThreadId}
+            onSelectMonitor={setSelectedMonitorId}
             onToggleOnlyDelta={() => setOnlyDelta((current) => !current)}
-            onToggleWatchThread={toggleWatchThread}
-            queueSections={queueSections}
-            selectedAgentId={landscapeAgentId}
-            selectedThreadId={selectedThreadId}
+            onToggleWatchCard={toggleWatchThread}
+            onlyDelta={onlyDelta}
+            selectedCardId={selectedThreadId}
+            selectedMonitorId={selectedMonitorId}
             threadWorkflowMap={threadWorkflowMap}
-            threads={visibleThreads}
-          />
-        ) : null}
-
-        {activeView === "agents" ? (
-          <AgentsView
-            agents={agentViews}
-            onOpenAgentInLandscape={openAgentInLandscape}
-            onOpenThreadInLandscape={openThreadInLandscape}
-            onSaveThreadToCase={saveThreadToCase}
-            onSelectAgent={setSelectedAgentId}
-            onToggleWatchThread={toggleWatchThread}
-            selectedAgentId={selectedAgent?.id ?? ""}
-            threadWorkflowMap={threadWorkflowMap}
-            threads={threads}
           />
         ) : null}
 
         {activeView === "cases" ? (
           <CasesView
             cases={cases}
-            onOpenThreadInLandscape={(threadId) => openThreadInLandscape(threadId)}
+            onOpenThreadInMonitors={openThreadInMonitors}
             onPromoteThreadToCase={saveThreadToCase}
             onSelectCase={setSelectedCaseId}
             selectedCaseId={selectedCaseId}
@@ -538,21 +482,16 @@ export default function App() {
           />
         ) : null}
 
-        {activeView === "sources" ? (
-          <SourcesView
-            onSelectSource={setSelectedSourceId}
-            registry={sourceRegistry}
-            selectedSourceId={selectedSourceId}
-          />
-        ) : null}
-
-        {activeView === "search" ? (
-          <SearchView
+        {activeView === "library" ? (
+          <LibraryView
             onQueryChange={setSearchQuery}
             onSelectResult={setSelectedResultId}
+            onSelectSource={setSelectedSourceId}
             query={searchQuery}
+            registry={sourceRegistry}
             results={searchResults}
             selectedResultId={selectedResultId}
+            selectedSourceId={selectedSourceId}
           />
         ) : null}
       </main>

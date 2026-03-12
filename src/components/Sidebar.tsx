@@ -16,34 +16,22 @@ const navItems: Array<{
   blurb: string;
 }> = [
   {
-    view: "landscape",
-    label: "Threat Landscape",
-    shortLabel: "Δ",
-    blurb: "Prioritized intel cards and meaningful change"
-  },
-  {
-    view: "agents",
-    label: "Agents",
-    shortLabel: "A",
-    blurb: "Saved monitors and focused intel lenses"
+    view: "monitors",
+    label: "Monitors",
+    shortLabel: "1",
+    blurb: "Saved feeds, focused monitors, and the main intel stream"
   },
   {
     view: "cases",
     label: "Cases",
-    shortLabel: "C",
+    shortLabel: "2",
     blurb: "Watch queue and durable investigations"
   },
   {
-    view: "sources",
-    label: "Sources",
-    shortLabel: "S",
-    blurb: "Registry, trust, and radar"
-  },
-  {
-    view: "search",
-    label: "Search",
-    shortLabel: "/",
-    blurb: "Find notes, entities, and sources"
+    view: "library",
+    label: "Library",
+    shortLabel: "3",
+    blurb: "Search, saved sources, and supporting context"
   }
 ];
 
@@ -58,10 +46,10 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="brand-panel panel">
-        <p className="eyebrow">Threat Intelligence Platform Prototype</p>
+        <p className="eyebrow">Threat Intelligence Cockpit</p>
         <h1>IntelDesk</h1>
         <p className="brand-copy">
-          Monitor what matters, then follow incidents end-to-end without losing the plot.
+          Monitor what matters, then turn the right signals into cases without losing context.
         </p>
       </div>
 

@@ -9,25 +9,17 @@ interface TopBarProps {
 }
 
 const titles: Record<NavView, { title: string; subtitle: string }> = {
-  landscape: {
-    title: "Threat Landscape",
-    subtitle: "Monitor prioritized intel cards, then decide what to watch, case, or ignore."
-  },
-  agents: {
-    title: "Agents",
-    subtitle: "Saved monitors that cut the landscape into focused lenses for daily review."
+  monitors: {
+    title: "Monitors",
+    subtitle: "A clean, monitor-first stream for daily intel gathering, quick triage, and deliberate follow-through."
   },
   cases: {
     title: "Cases",
-    subtitle: "Watch emerging cards lightly, then promote the real ones into durable case files."
+    subtitle: "A durable workspace for the cards that became real investigations."
   },
-  sources: {
-    title: "Sources",
-    subtitle: "Curate the source canon and spot emerging domains worth keeping."
-  },
-  search: {
-    title: "Search",
-    subtitle: "Find entities, notes, cards, agents, and source dossiers in one place."
+  library: {
+    title: "Library",
+    subtitle: "Search cards, inspect saved sources, and recover context without leaving the workbench."
   }
 };
 
@@ -43,7 +35,7 @@ export function TopBar({
   return (
     <header className="topbar panel">
       <div>
-        <p className="eyebrow">Feedly-style intel prototype</p>
+        <p className="eyebrow">Monitor first. Case second.</p>
         <h2>{view.title}</h2>
         <p className="topbar-copy">{view.subtitle}</p>
       </div>
@@ -59,7 +51,7 @@ export function TopBar({
           onClick={onOpenAddUrl}
           type="button"
         >
-          Add URL
+          Add Source
         </button>
         <button className="theme-button" onClick={onToggleTheme} type="button">
           {darkMode ? "Light theme" : "Dark theme"}

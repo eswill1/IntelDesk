@@ -7,7 +7,7 @@ interface CasesViewProps {
   onSelectCase: (caseId: string) => void;
   watchedThreads: Thread[];
   onPromoteThreadToCase: (threadId: string) => void;
-  onOpenThreadInLandscape: (threadId: string) => void;
+  onOpenThreadInMonitors: (threadId: string) => void;
 }
 
 function formatTime(value: string) {
@@ -24,7 +24,7 @@ export function CasesView({
   onSelectCase,
   watchedThreads,
   onPromoteThreadToCase,
-  onOpenThreadInLandscape
+  onOpenThreadInMonitors
 }: CasesViewProps) {
   const selectedCase = cases.find((item) => item.id === selectedCaseId) ?? cases[0] ?? null;
   const linkedThreads = selectedCase
@@ -57,10 +57,10 @@ export function CasesView({
                     <div className="mini-actions">
                       <button
                         className="ghost-button mini-ghost"
-                        onClick={() => onOpenThreadInLandscape(thread.id)}
+                        onClick={() => onOpenThreadInMonitors(thread.id)}
                         type="button"
                       >
-                        Open in Landscape
+                        Open in Monitors
                       </button>
                       <button
                         className="ghost-button mini-ghost"
@@ -76,7 +76,7 @@ export function CasesView({
             ) : (
               <article className="empty-state">
                 <h4>No watched cards</h4>
-                <p>Use Watch in the Threat Landscape for cards that are interesting but not yet worth a full case.</p>
+                <p>Use Watch in Monitors for cards that are interesting but not yet worth a full case.</p>
               </article>
             )}
           </section>
@@ -216,7 +216,7 @@ export function CasesView({
         ) : (
           <article className="empty-state">
             <h4>No cases yet</h4>
-            <p>Promote a watched card or save a Threat Landscape card directly into a new case.</p>
+            <p>Promote a watched card or save a monitor card directly into a new case.</p>
           </article>
         )}
       </aside>

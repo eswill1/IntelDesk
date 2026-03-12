@@ -405,7 +405,7 @@ export function AddUrlDialog({
             <textarea
               className="search-input text-area"
               onChange={(event) => setManualField("summary", event.target.value)}
-              placeholder="Optional card summary for the Threat Landscape"
+              placeholder="Optional card summary for the monitor feed"
               rows={4}
               value={draft.summary ?? ""}
             />
@@ -460,7 +460,7 @@ export function AddUrlDialog({
               disabled={isSaving || isSeeding}
               type="submit"
             >
-              {isSaving ? "Adding..." : "Add to Landscape"}
+              {isSaving ? "Adding..." : "Add to Feed"}
             </button>
           </div>
         </form>

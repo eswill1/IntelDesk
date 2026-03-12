@@ -1,4 +1,4 @@
-export type NavView = "landscape" | "agents" | "cases" | "sources" | "search";
+export type NavView = "monitors" | "cases" | "library";
 
 export type ThreadStatus = "developing" | "confirmed" | "watching" | "disputed";
 export type CaseStatus = "watching" | "active" | "resolved" | "archived";
@@ -224,7 +224,7 @@ export interface ThreadQueueSection {
 
 export interface SearchResult {
   id: string;
-  kind: "card" | "agent" | "case" | "source" | "registry";
+  kind: "card" | "monitor" | "case" | "source" | "registry";
   title: string;
   subtitle: string;
   context: string;
