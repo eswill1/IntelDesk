@@ -105,9 +105,16 @@ export interface ManualUrlMetadata {
   summary?: string;
   author?: string;
   entities: string[];
+  outboundLinks?: ManualUrlPreviewLink[];
   sourceType?: SourceType;
-  strategy: "fetched" | "derived";
+  strategy: "server" | "fetched" | "derived";
   message: string;
+}
+
+export interface ManualUrlPreviewLink {
+  url: string;
+  domain: string;
+  label: string;
 }
 
 export interface WorkspaceUser {

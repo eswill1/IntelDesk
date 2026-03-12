@@ -119,13 +119,14 @@ function deriveMetadata(url: URL): ManualUrlMetadata {
     title,
     summary,
     entities: extractEntities(url.pathname, url.search),
+    outboundLinks: [],
     sourceType: guessSourceType(url),
     strategy: "derived",
     message: "Using URL-derived hints. Live metadata fetch may be blocked by the source."
   };
 }
 
-export async function fetchUrlMetadata(rawUrl: string): Promise<ManualUrlMetadata> {
+async function fetchUrlMetadataInBrowser(rawUrl: string): Promise<ManualUrlMetadata> {
   const normalizedUrl = normalizeUrlInput(rawUrl);
   const fallback = deriveMetadata(normalizedUrl);
   const controller = new AbortController();
@@ -177,6 +178,7 @@ export async function fetchUrlMetadata(rawUrl: string): Promise<ManualUrlMetadat
       summary: summary || fallback.summary,
       author,
       entities: combinedEntities,
+      outboundLinks: [],
       sourceType: fallback.sourceType,
       strategy: "fetched",
       message: "Fetched page metadata directly from the source."
@@ -186,4 +188,42 @@ export async function fetchUrlMetadata(rawUrl: string): Promise<ManualUrlMetadat
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+function isPreviewResponse(payload: unknown): payload is ManualUrlMetadata {
+  return Boolean(
+    payload &&
+      typeof payload === "object" &&
+      "normalizedUrl" in payload &&
+      "entities" in payload &&
+      "message" in payload
+  );
+}
+
+export async function previewUrlIntake(rawUrl: string): Promise<ManualUrlMetadata> {
+  const normalizedUrl = normalizeUrlInput(rawUrl);
+
+  try {
+    const response = await fetch("/api/intake/preview", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: normalizedUrl.toString()
+      })
+    });
+
+    if (response.ok) {
+      const payload = (await response.json()) as unknown;
+
+      if (isPreviewResponse(payload)) {
+        return payload;
+      }
+    }
+  } catch {
+    // Fall back to browser-side hints when the preview API is unavailable.
+  }
+
+  return fetchUrlMetadataInBrowser(normalizedUrl.toString());
 }

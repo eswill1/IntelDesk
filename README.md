@@ -33,7 +33,21 @@ The first implementation target is a working research cockpit, not a backend pla
 ## Local Bootstrap
 
 1. Install dependencies with `npm install`
-2. Start the app with `npm run dev`
+2. Start the app shell with `npm run dev`
 3. Build with `npm run build`
+
+## Backend Preview API
+
+IntelDesk now includes a small preview API for `Add URL` at `server/intakePreviewServer.mjs`.
+
+- Start it with `npm run dev:api`
+- It listens on `127.0.0.1:4100`
+- Vite proxies `/api/*` to that port during local development
+
+The current endpoint is:
+
+- `POST /api/intake/preview`
+
+It performs server-side URL fetch, best-effort metadata extraction, and outbound-link discovery so `Add URL` can evolve into a seed-and-expand workflow instead of staying a manual form forever.
 
 The current UI is a high-fidelity shell with representative data, intended to lock the interaction model before ingestion and persistence land.

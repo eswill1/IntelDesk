@@ -626,6 +626,10 @@ button:disabled {
   color: var(--delta);
 }
 
+.preview-block {
+  margin-bottom: 0;
+}
+
 .starter-query-group {
   margin-bottom: 1rem;
 }

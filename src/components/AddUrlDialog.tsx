@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { fetchUrlMetadata } from "../lib/urlMetadata";
+import { previewUrlIntake } from "../lib/urlMetadata";
 import type { ManualUrlIntake, SourceType, ThreadStatus } from "../types";
 
 interface AddUrlDialogProps {
@@ -51,6 +51,9 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
   const [entityInput, setEntityInput] = useState("");
   const [error, setError] = useState("");
   const [metadataMessage, setMetadataMessage] = useState("");
+  const [discoveredLinks, setDiscoveredLinks] = useState<
+    Array<{ url: string; domain: string; label: string }>
+  >([]);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [autoManaged, setAutoManaged] = useState<AutoManagedFields>(initialAutoManaged);
@@ -78,6 +81,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
       setEntityInput("");
       setError("");
       setMetadataMessage("");
+      setDiscoveredLinks([]);
       setIsFetchingMetadata(false);
       setIsSaving(false);
       setAutoManaged(initialAutoManaged);
@@ -135,7 +139,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
     setMetadataMessage("Analyzing URL and attempting metadata fetch.");
 
     try {
-      const metadata = await fetchUrlMetadata(urlCandidate);
+      const metadata = await previewUrlIntake(urlCandidate);
 
       if (metadataRequestIdRef.current !== requestId) {
         return;
@@ -175,6 +179,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
         entities: shouldReplaceEntities && metadata.entities.length > 0,
         sourceType: shouldReplaceSourceType && Boolean(metadata.sourceType)
       });
+      setDiscoveredLinks(metadata.outboundLinks ?? []);
       setMetadataMessage(metadata.message);
       setLastAnalyzedUrl(metadata.normalizedUrl);
     } catch (metadataError) {
@@ -255,6 +260,7 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
                   setDraft((current) => ({ ...current, url: nextUrl }));
                   if (nextUrl.trim() !== lastAnalyzedUrl) {
                     setMetadataMessage("URL changed. Analyze to refresh title and metadata.");
+                    setDiscoveredLinks([]);
                   }
                 }}
                 placeholder="https://example.com/advisory"
@@ -279,6 +285,26 @@ export function AddUrlDialog({ open, onClose, onSubmit }: AddUrlDialogProps) {
             <p className="form-status" aria-live="polite">
               {metadataMessage}
             </p>
+          ) : null}
+
+          {discoveredLinks.length ? (
+            <div className="detail-block preview-block">
+              <h4>Discovered links</h4>
+              <p className="modal-copy">
+                Early signal for where a stronger seed-and-expand workflow can go next.
+              </p>
+              <div className="compact-list">
+                {discoveredLinks.map((link) => (
+                  <article key={link.url} className="compact-card">
+                    <div className="thread-card-topline">
+                      <span className="canonical-pill">{link.domain}</span>
+                    </div>
+                    <h5>{link.label}</h5>
+                    <p>{link.url}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
           ) : null}
 
           <div className="form-grid">
