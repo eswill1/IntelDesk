@@ -16,7 +16,7 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
-const starterQueries = ["CVE-2026-1182", "Ivanti", "supply chain", "Fortinet"];
+const starterQueries = ["CVE-2026-1182", "Ivanti", "edge exploitation", "supply chain"];
 
 export function SearchView({
   query,
@@ -34,7 +34,7 @@ export function SearchView({
         <div className="panel-header">
           <div>
             <p className="eyebrow">Global search</p>
-            <h3>Titles, notes, entities, and sources</h3>
+            <h3>Cards, agents, notes, entities, and sources</h3>
           </div>
         </div>
 
@@ -140,7 +140,7 @@ export function SearchView({
         ) : (
           <article className="empty-state">
             <h4>Search the workbench</h4>
-            <p>Results from threads, cases, source items, and the source registry will appear here.</p>
+            <p>Results from cards, agents, cases, source items, and the source registry will appear here.</p>
           </article>
         )}
       </aside>

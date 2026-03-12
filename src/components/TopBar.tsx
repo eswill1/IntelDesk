@@ -9,13 +9,17 @@ interface TopBarProps {
 }
 
 const titles: Record<NavView, { title: string; subtitle: string }> = {
-  inbox: {
-    title: "Inbox",
-    subtitle: "Triage thread-level deltas and promote the right records."
+  landscape: {
+    title: "Threat Landscape",
+    subtitle: "Monitor prioritized intel cards, then decide what to watch, case, or ignore."
+  },
+  agents: {
+    title: "Agents",
+    subtitle: "Saved monitors that cut the landscape into focused lenses for daily review."
   },
   cases: {
     title: "Cases",
-    subtitle: "Watch emerging threads lightly, then promote the real ones into durable case files."
+    subtitle: "Watch emerging cards lightly, then promote the real ones into durable case files."
   },
   sources: {
     title: "Sources",
@@ -23,7 +27,7 @@ const titles: Record<NavView, { title: string; subtitle: string }> = {
   },
   search: {
     title: "Search",
-    subtitle: "Find entities, notes, threads, and source dossiers in one place."
+    subtitle: "Find entities, notes, cards, agents, and source dossiers in one place."
   }
 };
 
@@ -39,7 +43,7 @@ export function TopBar({
   return (
     <header className="topbar panel">
       <div>
-        <p className="eyebrow">Local-first prototype</p>
+        <p className="eyebrow">Feedly-style intel prototype</p>
         <h2>{view.title}</h2>
         <p className="topbar-copy">{view.subtitle}</p>
       </div>

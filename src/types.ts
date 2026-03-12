@@ -1,4 +1,4 @@
-export type NavView = "inbox" | "cases" | "sources" | "search";
+export type NavView = "landscape" | "agents" | "cases" | "sources" | "search";
 
 export type ThreadStatus = "developing" | "confirmed" | "watching" | "disputed";
 export type CaseStatus = "watching" | "active" | "resolved" | "archived";
@@ -6,6 +6,7 @@ export type SourceType = "advisory" | "gov" | "researcher" | "community" | "repo
 export type PromotionState = "promoted" | "neutral" | "demoted" | "muted";
 export type ThreadLifecycleState = "new" | "reviewed" | "watching" | "in_case" | "muted";
 export type ThreadQueueState = "new" | "reviewed" | "watching" | "in-case" | "muted" | "new-delta";
+export type AgentPriority = "critical" | "targeted" | "background";
 
 export interface SourceItem {
   id: string;
@@ -80,6 +81,33 @@ export interface SourceRegistryEntry {
   examples: string[];
   rationale: string;
   emerging: boolean;
+}
+
+export interface AgentDefinition {
+  id: string;
+  title: string;
+  summary: string;
+  lens: string;
+  objective: string;
+  keywords: string[];
+  entityHints: string[];
+  sourceTypes?: SourceType[];
+  priority: AgentPriority;
+}
+
+export interface AgentCardMatch {
+  threadId: string;
+  score: number;
+  reasons: string[];
+}
+
+export interface AgentView extends AgentDefinition {
+  matches: AgentCardMatch[];
+  threadCount: number;
+  newDeltaCount: number;
+  watchCount: number;
+  inCaseCount: number;
+  latestActivityAt?: string;
 }
 
 export interface ManualUrlIntake {
@@ -196,7 +224,7 @@ export interface ThreadQueueSection {
 
 export interface SearchResult {
   id: string;
-  kind: "thread" | "case" | "source" | "registry";
+  kind: "card" | "agent" | "case" | "source" | "registry";
   title: string;
   subtitle: string;
   context: string;

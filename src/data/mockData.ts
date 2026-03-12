@@ -1,4 +1,55 @@
-import type { CaseFile, SourceRegistryEntry, Thread } from "../types";
+import type { AgentDefinition, CaseFile, SourceRegistryEntry, Thread } from "../types";
+
+export const agentDefinitions: AgentDefinition[] = [
+  {
+    id: "agent-edge-exploitation",
+    title: "Edge Exploitation Monitor",
+    summary:
+      "Track exploited edge appliances where vendor advisories, CISA movement, and researcher corroboration are converging.",
+    lens: "Internet-facing appliance exploitation",
+    objective: "Catch real edge exploitation early without drowning in reposted vendor chatter.",
+    keywords: ["edge appliance", "gateway", "exploitation", "KEV", "Connect Secure", "FortiOS"],
+    entityHints: ["Ivanti", "Fortinet", "Connect Secure", "FortiOS", "CVE-2026-1182"],
+    sourceTypes: ["advisory", "gov", "researcher"],
+    priority: "critical"
+  },
+  {
+    id: "agent-active-vulns",
+    title: "Active Vulnerability Signals",
+    summary:
+      "Surface vulnerabilities that are moving from patch guidance into active exploitation, public corroboration, or high-confidence defensive urgency.",
+    lens: "Exploitability and vulnerability escalation",
+    objective: "Separate patch noise from the subset that deserves immediate analyst attention.",
+    keywords: ["exploitation", "active exploitation", "advisory", "mitigation", "workaround", "KEV"],
+    entityHints: ["CISA", "CVE-2026-1182", "auth bypass"],
+    sourceTypes: ["advisory", "gov"],
+    priority: "critical"
+  },
+  {
+    id: "agent-supply-chain",
+    title: "Supply Chain Integrity Watch",
+    summary:
+      "Monitor package, repo, and CI/CD compromise claims while separating durable evidence from community echo chambers.",
+    lens: "Repository and package trust",
+    objective: "Keep supply-chain scares organized until platform or maintainer evidence settles the story.",
+    keywords: ["supply chain", "repo integrity", "GitHub Actions", "maintainer", "hash mismatch"],
+    entityHints: ["GitHub Actions", "repo integrity", "supply chain"],
+    sourceTypes: ["repo", "community", "researcher"],
+    priority: "targeted"
+  },
+  {
+    id: "agent-microsoft-identity",
+    title: "Microsoft Identity and Access Watch",
+    summary:
+      "Keep background monitoring on Microsoft auth, patch, and account-boundary issues without forcing every patch into an active case.",
+    lens: "Identity and access breakage",
+    objective: "Maintain continuity on Microsoft patch-cycle issues until exploitation or impact detail becomes clearer.",
+    keywords: ["Microsoft", "Outlook", "auth bypass", "patch guidance", "identity"],
+    entityHints: ["Microsoft", "Outlook", "auth bypass"],
+    sourceTypes: ["advisory", "researcher"],
+    priority: "background"
+  }
+];
 
 export const threads: Thread[] = [
   {

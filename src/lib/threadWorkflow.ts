@@ -19,12 +19,12 @@ const queueMeta: Record<
 > = {
   "new-delta": {
     title: "Reactivated by delta",
-    description: "Threads you reviewed earlier but that changed enough to deserve another pass.",
+    description: "Cards you reviewed earlier but that changed enough to deserve another pass.",
     badge: "New Δ"
   },
   new: {
     title: "Needs review",
-    description: "Fresh threads that still need a triage decision.",
+    description: "Fresh cards that still need a triage decision.",
     badge: "New"
   },
   watching: {
@@ -39,7 +39,7 @@ const queueMeta: Record<
   },
   "in-case": {
     title: "Already in cases",
-    description: "Threads that already have a durable workspace elsewhere in the product.",
+    description: "Cards that already have a durable workspace elsewhere in the product.",
     badge: "In case"
   },
   muted: {

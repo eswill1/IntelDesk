@@ -1,11 +1,13 @@
+import { getAgentMatchesForThread } from "../lib/agents";
 import { getThreadQueueMeta } from "../lib/threadWorkflow";
 import type {
+  AgentView,
   Thread,
   ThreadQueueSection,
   ThreadWorkflowView
 } from "../types";
 
-interface InboxViewProps {
+interface ThreatLandscapeViewProps {
   threads: Thread[];
   queueSections: ThreadQueueSection[];
   selectedThreadId: string;
@@ -15,6 +17,10 @@ interface InboxViewProps {
   threadWorkflowMap: Record<string, ThreadWorkflowView>;
   onToggleWatchThread: (threadId: string) => void;
   onSaveThreadToCase: (threadId: string) => void;
+  agents: AgentView[];
+  selectedAgentId: string;
+  onSelectAgent: (agentId: string) => void;
+  onClearAgent: () => void;
 }
 
 function formatTime(value: string) {
@@ -24,24 +30,24 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
-function getTriageCopy(workflow: ThreadWorkflowView) {
+function getAnalystStateCopy(workflow: ThreadWorkflowView) {
   switch (workflow.queueState) {
     case "new":
-      return "This thread is still in raw triage. Review it, park it in the watch queue, or promote it straight into a case if the storyline is already obvious.";
+      return "This card is still in raw triage. Review it, park it in Watch, or promote it straight into a case if the storyline is already strong enough.";
     case "new-delta":
-      return "This thread was reviewed already, but meaningful changes landed afterward. Treat it like a reactivated queue item instead of background noise.";
+      return "This card was already reviewed, but meaningful change landed afterward. Treat it like a reactivated signal instead of background noise.";
     case "watching":
-      return "This thread is parked for revisit without the overhead of a full case. Promote it once it deserves notes, timeline management, or a clearer narrative.";
+      return "This card is parked for revisit without the overhead of a full case. Promote it once it deserves notes, timeline management, or a clearer narrative.";
     case "reviewed":
-      return "This thread has already been reviewed and deliberately set aside. It should stay out of the way until a real delta arrives.";
+      return "This card has already been reviewed and deliberately set aside. It should stay out of the way until a real delta arrives.";
     case "in-case":
-      return "This thread already has a durable workspace. Reopen the case to add notes, review the timeline, or check deltas.";
+      return "This card already has a durable case workspace. Reopen the case to add notes, review the timeline, or check deltas.";
     case "muted":
-      return "This thread is muted from the working queue. Reopen it intentionally if the signal changes.";
+      return "This card is muted from the working landscape. Reopen it intentionally if the signal changes.";
   }
 }
 
-export function InboxView({
+export function ThreatLandscapeView({
   threads,
   queueSections,
   selectedThreadId,
@@ -50,8 +56,13 @@ export function InboxView({
   onToggleOnlyDelta,
   threadWorkflowMap,
   onToggleWatchThread,
-  onSaveThreadToCase
-}: InboxViewProps) {
+  onSaveThreadToCase,
+  agents,
+  selectedAgentId,
+  onSelectAgent,
+  onClearAgent
+}: ThreatLandscapeViewProps) {
+  const selectedAgent = agents.find((item) => item.id === selectedAgentId) ?? null;
   const selectedThread =
     threads.find((thread) => thread.id === selectedThreadId) ?? queueSections[0]?.threads[0] ?? null;
   const selectedThreadWorkflow = selectedThread
@@ -62,18 +73,54 @@ export function InboxView({
     : null;
   const selectedThreadCaseId = selectedThreadWorkflow?.caseId;
   const selectedThreadIsWatched = selectedThreadWorkflow?.state === "watching";
+  const selectedThreadAgents = selectedThread
+    ? getAgentMatchesForThread(agents, selectedThread.id)
+    : [];
 
   return (
     <div className="workspace-grid">
       <section className="panel list-panel">
         <div className="panel-header">
           <div>
-            <p className="eyebrow">Review queue</p>
-            <h3>{onlyDelta ? "Only needs review" : "Full Inbox state"}</h3>
+            <p className="eyebrow">Monitoring</p>
+            <h3>{selectedAgent ? selectedAgent.title : "Threat Landscape"}</h3>
           </div>
           <button className="ghost-button" onClick={onToggleOnlyDelta} type="button">
             {onlyDelta ? "Show all" : "Only Δ"}
           </button>
+        </div>
+
+        <div className="detail-block">
+          <div className="thread-card-topline">
+            <span className="canonical-pill">{selectedAgent ? "Agent lens" : "All coverage"}</span>
+            <span className="meta-text">{threads.length} cards in view</span>
+            <span className="meta-text">{agents.length} saved agents</span>
+          </div>
+          <h4>{selectedAgent ? selectedAgent.title : "Prioritized intelligence cards"}</h4>
+          <p>
+            {selectedAgent
+              ? selectedAgent.summary
+              : "Review prioritized cards, filter to meaningful delta, and promote the right signals into Watch or Cases."}
+          </p>
+          <div className="entity-row">
+            <button
+              className={`entity-pill button-pill${selectedAgent ? "" : " is-active"}`}
+              onClick={onClearAgent}
+              type="button"
+            >
+              All cards
+            </button>
+            {agents.map((agent) => (
+              <button
+                key={agent.id}
+                className={`entity-pill button-pill${agent.id === selectedAgentId ? " is-active" : ""}`}
+                onClick={() => onSelectAgent(agent.id)}
+                type="button"
+              >
+                {agent.title}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="thread-list">
@@ -85,7 +132,7 @@ export function InboxView({
                     <p className="eyebrow">{section.title}</p>
                     <p className="queue-section-copy">{section.description}</p>
                   </div>
-                  <span className="meta-text">{section.threads.length} threads</span>
+                  <span className="meta-text">{section.threads.length} cards</span>
                 </div>
 
                 <div className="compact-list">
@@ -135,11 +182,19 @@ export function InboxView({
             ))
           ) : (
             <article className="empty-state">
-              <h4>{onlyDelta ? "Nothing needs review" : "No Inbox threads"}</h4>
+              <h4>
+                {selectedAgent
+                  ? "No cards match this agent"
+                  : onlyDelta
+                    ? "Nothing needs review"
+                    : "No cards in view"}
+              </h4>
               <p>
-                {onlyDelta
-                  ? "The active queue is clear. Toggle Show all to revisit watched, reviewed, or case-linked threads."
-                  : "Change filters or ingest more material to repopulate the queue."}
+                {selectedAgent
+                  ? "Clear the agent lens or add more live material to broaden this monitor."
+                  : onlyDelta
+                    ? "The active review queue is clear. Toggle Show all to revisit watched, reviewed, or case-linked cards."
+                    : "Change filters or ingest more material to repopulate the landscape."}
               </p>
             </article>
           )}
@@ -151,7 +206,7 @@ export function InboxView({
           <>
             <div className="panel-header">
               <div>
-                <p className="eyebrow">Thread detail</p>
+                <p className="eyebrow">Intel card detail</p>
                 <h3>{selectedThread.title}</h3>
               </div>
               <div className="detail-actions">
@@ -160,7 +215,7 @@ export function InboxView({
                   onClick={() => onSaveThreadToCase(selectedThread.id)}
                   type="button"
                 >
-                  {selectedThreadCaseId ? "Open Case" : "Save to Case"}
+                  {selectedThreadCaseId ? "Open Case" : "Create Case"}
                 </button>
                 {!selectedThreadCaseId ? (
                   <button
@@ -199,14 +254,36 @@ export function InboxView({
               </p>
             </div>
 
+            {selectedThreadAgents.length ? (
+              <div className="detail-block">
+                <h4>Matched agents</h4>
+                <div className="compact-list">
+                  {selectedThreadAgents.map(({ agent, match }) => (
+                    <article key={agent.id} className="compact-card">
+                      <div className="thread-card-topline">
+                        <span className={`status-tag status-${agent.priority}`}>{agent.priority}</span>
+                        <span className="meta-text">{agent.lens}</span>
+                      </div>
+                      <h5>{agent.title}</h5>
+                      <ul className="delta-list">
+                        {match.reasons.map((reason) => (
+                          <li key={reason}>{reason}</li>
+                        ))}
+                      </ul>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <div className="detail-block">
-              <h4>Triage state</h4>
+              <h4>Analyst state</h4>
               <div className="thread-card-topline">
                 <span className={`status-tag status-${selectedThreadWorkflow.queueState}`}>
                   {selectedThreadQueueMeta.badge}
                 </span>
               </div>
-              <p>{getTriageCopy(selectedThreadWorkflow)}</p>
+              <p>{getAnalystStateCopy(selectedThreadWorkflow)}</p>
             </div>
 
             <div className="detail-block">
@@ -251,8 +328,8 @@ export function InboxView({
           </>
         ) : (
           <article className="empty-state">
-            <h4>Queue is clear</h4>
-            <p>Nothing is selected right now. Reopen the full Inbox or ingest new material.</p>
+            <h4>No card selected</h4>
+            <p>Choose a card from the Threat Landscape or clear the current agent filter.</p>
           </article>
         )}
       </aside>

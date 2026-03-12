@@ -7,7 +7,7 @@ interface CasesViewProps {
   onSelectCase: (caseId: string) => void;
   watchedThreads: Thread[];
   onPromoteThreadToCase: (threadId: string) => void;
-  onOpenThreadInInbox: (threadId: string) => void;
+  onOpenThreadInLandscape: (threadId: string) => void;
 }
 
 function formatTime(value: string) {
@@ -24,7 +24,7 @@ export function CasesView({
   onSelectCase,
   watchedThreads,
   onPromoteThreadToCase,
-  onOpenThreadInInbox
+  onOpenThreadInLandscape
 }: CasesViewProps) {
   const selectedCase = cases.find((item) => item.id === selectedCaseId) ?? cases[0] ?? null;
   const linkedThreads = selectedCase
@@ -57,10 +57,10 @@ export function CasesView({
                     <div className="mini-actions">
                       <button
                         className="ghost-button mini-ghost"
-                        onClick={() => onOpenThreadInInbox(thread.id)}
+                        onClick={() => onOpenThreadInLandscape(thread.id)}
                         type="button"
                       >
-                        Open in Inbox
+                        Open in Landscape
                       </button>
                       <button
                         className="ghost-button mini-ghost"
@@ -75,8 +75,8 @@ export function CasesView({
               </div>
             ) : (
               <article className="empty-state">
-                <h4>No watched threads</h4>
-                <p>Use Watch in the Inbox for threads that are interesting but not yet worth a full case.</p>
+                <h4>No watched cards</h4>
+                <p>Use Watch in the Threat Landscape for cards that are interesting but not yet worth a full case.</p>
               </article>
             )}
           </section>
@@ -100,7 +100,7 @@ export function CasesView({
                 >
                   <div className="thread-card-topline">
                     <span className={`status-tag status-${item.status}`}>{item.status}</span>
-                    <span className="meta-text">{item.linkedThreadIds.length} threads</span>
+                    <span className="meta-text">{item.linkedThreadIds.length} cards</span>
                   </div>
                   <h4>{item.title}</h4>
                   <div className="entity-row">
@@ -167,7 +167,7 @@ export function CasesView({
             </div>
 
             <div className="detail-block">
-              <h4>Linked threads</h4>
+              <h4>Linked cards</h4>
               <div className="compact-list">
                 {linkedThreads.map((thread) => (
                   <article key={thread.id} className="compact-card">
@@ -216,7 +216,7 @@ export function CasesView({
         ) : (
           <article className="empty-state">
             <h4>No cases yet</h4>
-            <p>Promote a watched thread or save an Inbox thread directly into a new case.</p>
+            <p>Promote a watched card or save a Threat Landscape card directly into a new case.</p>
           </article>
         )}
       </aside>

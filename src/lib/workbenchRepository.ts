@@ -122,7 +122,7 @@ function buildCaseFromThread(thread: Thread, userId: string): StoredCaseFile {
     updatedAt: createdAt,
     createdAt,
     deltaSummary: [
-      "Case created from the Inbox for deliberate follow-up.",
+      "Case created from the Threat Landscape for deliberate follow-up.",
       ...thread.changeHighlights.slice(0, 2)
     ],
     linkedThreadIds: [thread.id],
@@ -131,7 +131,7 @@ function buildCaseFromThread(thread: Thread, userId: string): StoredCaseFile {
       {
         id: `note-${thread.id}-seed`,
         createdAt,
-        text: "Created from triage when the thread crossed from interesting into something worth revisiting.",
+        text: "Created from triage when the card crossed from interesting into something worth revisiting.",
         pinned: true
       }
     ],
@@ -142,14 +142,14 @@ function buildCaseFromThread(thread: Thread, userId: string): StoredCaseFile {
         label: "Initial canonical source",
         detail: canonicalSource
           ? `${canonicalSource.domain} established the first durable record for this case.`
-          : "Thread promoted from the Inbox before a canonical source was pinned.",
+          : "Card promoted from the Threat Landscape before a canonical source was pinned.",
         kind: "source"
       },
       {
         id: `timeline-${thread.id}-promotion`,
         at: createdAt,
-        label: "Case created from Inbox",
-        detail: "Thread promoted into a durable workspace so notes, deltas, and sources survive triage.",
+        label: "Case created from Threat Landscape",
+        detail: "Card promoted into a durable workspace so notes, deltas, and sources survive triage.",
         kind: "status"
       }
     ]

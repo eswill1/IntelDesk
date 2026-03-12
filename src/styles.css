@@ -394,7 +394,8 @@ button:disabled {
 
 .status-confirmed,
 .status-active,
-.status-promoted {
+.status-promoted,
+.status-critical {
   background: var(--accent-soft);
   color: var(--accent);
 }
@@ -407,7 +408,8 @@ button:disabled {
 
 .status-developing,
 .status-watching,
-.status-neutral {
+.status-neutral,
+.status-targeted {
   background: var(--gold-soft);
   color: var(--gold);
 }
@@ -426,7 +428,8 @@ button:disabled {
 .status-demoted,
 .status-muted,
 .status-archived,
-.status-resolved {
+.status-resolved,
+.status-background {
   background: var(--danger-soft);
   color: var(--delta);
 }
@@ -454,6 +457,12 @@ button:disabled {
 
 .button-pill {
   padding: 0.35rem 0.7rem;
+}
+
+.button-pill.is-active {
+  background: var(--accent-soft);
+  border-color: rgba(35, 76, 68, 0.24);
+  color: var(--accent);
 }
 
 .delta-list,

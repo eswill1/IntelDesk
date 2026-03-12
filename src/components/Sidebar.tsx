@@ -16,16 +16,22 @@ const navItems: Array<{
   blurb: string;
 }> = [
   {
-    view: "inbox",
-    label: "Inbox",
+    view: "landscape",
+    label: "Threat Landscape",
     shortLabel: "Δ",
-    blurb: "New threads and meaningful changes"
+    blurb: "Prioritized intel cards and meaningful change"
+  },
+  {
+    view: "agents",
+    label: "Agents",
+    shortLabel: "A",
+    blurb: "Saved monitors and focused intel lenses"
   },
   {
     view: "cases",
     label: "Cases",
     shortLabel: "C",
-    blurb: "Watch queue and living investigations"
+    blurb: "Watch queue and durable investigations"
   },
   {
     view: "sources",
@@ -52,10 +58,10 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="brand-panel panel">
-        <p className="eyebrow">Threat Intel Research Workbench</p>
+        <p className="eyebrow">Threat Intelligence Platform Prototype</p>
         <h1>IntelDesk</h1>
         <p className="brand-copy">
-          Follow incidents end-to-end without losing the plot.
+          Monitor what matters, then follow incidents end-to-end without losing the plot.
         </p>
       </div>
 

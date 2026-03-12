@@ -108,7 +108,7 @@ export function SourcesView({
               <strong>{formatPercent(selectedSource.corroborationRate)}</strong>
             </div>
             <div>
-              <span className="metric-label">Saved threads</span>
+              <span className="metric-label">Saved cards</span>
               <strong>{selectedSource.savedThreadCount}</strong>
             </div>
             <div>
@@ -119,7 +119,7 @@ export function SourcesView({
         </div>
 
         <div className="detail-block">
-          <h4>Example threads</h4>
+          <h4>Example cards</h4>
           <div className="compact-list">
             {selectedSource.examples.map((example) => (
               <article key={example} className="compact-card">
