@@ -59,12 +59,19 @@ body {
 }
 
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
 }
 
 button {
   cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .app-shell {
@@ -549,6 +556,62 @@ button {
   color: var(--text-muted);
 }
 
+.text-area {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.primary-button {
+  background: var(--accent-soft);
+  border-color: rgba(35, 76, 68, 0.22);
+  color: var(--accent);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(8, 12, 11, 0.56);
+  backdrop-filter: blur(12px);
+  z-index: 1000;
+}
+
+.modal-card {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 2.5rem);
+  overflow: auto;
+  padding: 1.1rem;
+}
+
+.modal-copy {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.form-stack {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.field-group {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.form-error {
+  margin: 0;
+  color: var(--delta);
+}
+
 .starter-query-group {
   margin-bottom: 1rem;
 }
@@ -605,6 +668,10 @@ button {
 
   .metric-grid,
   .metric-grid.large {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid {
     grid-template-columns: 1fr;
   }
 }

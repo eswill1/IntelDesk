@@ -6,7 +6,11 @@ import {
 import { hasMeaningfulThreadChange } from "./threadWorkflow";
 import type {
   CaseFile,
+  ManualUrlAddResult,
+  ManualUrlIntake,
   SourceRegistryEntry,
+  SourceItem,
+  SourceType,
   StoredCaseFile,
   Thread,
   ThreadLifecycleState,
@@ -245,6 +249,145 @@ function sortRegistryEntries(entries: SourceRegistryEntry[]) {
   return [...entries].sort((left, right) => right.savedThreadCount - left.savedThreadCount);
 }
 
+function createId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeUrl(rawUrl: string) {
+  const trimmed = rawUrl.trim();
+
+  if (!trimmed) {
+    throw new Error("URL is required.");
+  }
+
+  try {
+    return new URL(trimmed).toString();
+  } catch {
+    try {
+      return new URL(`https://${trimmed}`).toString();
+    } catch {
+      throw new Error("Enter a valid URL.");
+    }
+  }
+}
+
+function getDomainFromUrl(url: string) {
+  return new URL(url).hostname.replace(/^www\./, "");
+}
+
+function cleanEntities(entities: string[]) {
+  return Array.from(
+    new Set(
+      entities
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function getRegistrySeedMetrics(sourceType: SourceType) {
+  switch (sourceType) {
+    case "advisory":
+      return { originalityRatio: 0.72, corroborationRate: 0.66 };
+    case "gov":
+      return { originalityRatio: 0.76, corroborationRate: 0.79 };
+    case "researcher":
+      return { originalityRatio: 0.68, corroborationRate: 0.64 };
+    case "repo":
+      return { originalityRatio: 0.59, corroborationRate: 0.48 };
+    case "community":
+      return { originalityRatio: 0.24, corroborationRate: 0.33 };
+  }
+}
+
+function buildManualSourceItem(draft: ManualUrlIntake, normalizedUrl: string, now: string): SourceItem {
+  const domain = getDomainFromUrl(normalizedUrl);
+  const title = draft.title?.trim() || domain;
+  const excerpt =
+    draft.summary?.trim() ||
+    draft.note?.trim() ||
+    "Added manually from analyst URL intake and awaiting corroboration.";
+
+  return {
+    id: createId("src-manual"),
+    title,
+    url: normalizedUrl,
+    domain,
+    author: draft.author?.trim() || "Unknown",
+    publishedAt: now,
+    fetchedAt: now,
+    sourceType: draft.sourceType,
+    excerpt,
+    entities: cleanEntities(draft.entities),
+    isCanonical: true
+  };
+}
+
+function buildManualThread(draft: ManualUrlIntake, source: SourceItem, now: string): Thread {
+  const title = source.title;
+  const summary =
+    draft.summary?.trim() ||
+    `${source.domain} was added manually and still needs broader corroboration or enrichment.`;
+  const note = draft.note?.trim();
+
+  return {
+    id: createId("thread-manual"),
+    title,
+    summary,
+    status: draft.status,
+    lastUpdated: now,
+    lastSeenAt: now,
+    changeHighlights: [note || "Manually added from analyst URL intake."],
+    sourceCount: 1,
+    corroborationCount: 0,
+    entities: source.entities,
+    sources: [source],
+    analystNotes: note
+      ? [note]
+      : ["Captured from manual URL intake. Needs extraction, corroboration, and source comparison."]
+  };
+}
+
+function buildManualRegistryEntry(
+  source: SourceItem,
+  threadTitle: string,
+  now: string
+): SourceRegistryEntry {
+  const metrics = getRegistrySeedMetrics(source.sourceType);
+
+  return {
+    id: createId("registry"),
+    domain: source.domain,
+    label: source.author !== "Unknown" ? source.author : source.domain,
+    category: source.sourceType,
+    promotedState: "neutral",
+    originalityRatio: metrics.originalityRatio,
+    corroborationRate: metrics.corroborationRate,
+    savedThreadCount: 1,
+    firstSeenAt: now,
+    examples: [threadTitle],
+    rationale: "Added manually from analyst intake. Treat early metrics as provisional until repeated use establishes a pattern.",
+    emerging: true
+  };
+}
+
+function mergeRegistryEntry(
+  existingEntry: SourceRegistryEntry,
+  source: SourceItem,
+  threadTitle: string
+): SourceRegistryEntry {
+  const nextExamples = [threadTitle, ...existingEntry.examples.filter((item) => item !== threadTitle)]
+    .slice(0, 5);
+
+  return {
+    ...existingEntry,
+    category: existingEntry.category || source.sourceType,
+    savedThreadCount: existingEntry.savedThreadCount + 1,
+    examples: nextExamples,
+    emerging: existingEntry.savedThreadCount + 1 < 4 ? true : existingEntry.emerging
+  };
+}
+
 async function getCurrentUser(database: IDBDatabase, userId: string) {
   const transaction = database.transaction(storeNames.users, "readonly");
   const user = await requestToPromise(
@@ -418,6 +561,93 @@ export const workbenchRepository = {
       await transactionDone(transaction);
 
       return createdCase.id;
+    });
+  },
+
+  async addManualUrl(userId: string, draft: ManualUrlIntake): Promise<ManualUrlAddResult> {
+    return withDatabase(async (database) => {
+      const normalizedUrl = normalizeUrl(draft.url);
+      const lookup = database.transaction(
+        [storeNames.threads, storeNames.sourceRegistry, storeNames.threadStates],
+        "readonly"
+      );
+      const threadsRequest = lookup.objectStore(storeNames.threads).getAll();
+      const registryRequest = lookup.objectStore(storeNames.sourceRegistry).getAll();
+      const threadStatesRequest = lookup.objectStore(storeNames.threadStates).getAll();
+      const threads = (await requestToPromise(threadsRequest)) as Thread[];
+      const registryEntries = (await requestToPromise(registryRequest)) as SourceRegistryEntry[];
+      const threadStates = (await requestToPromise(threadStatesRequest)) as ThreadState[];
+
+      await transactionDone(lookup);
+
+      const now = new Date().toISOString();
+      const existingThread = threads.find((thread) =>
+        thread.sources.some((source) => source.url === normalizedUrl)
+      );
+
+      if (existingThread) {
+        const existingSource =
+          existingThread.sources.find((source) => source.url === normalizedUrl) ??
+          existingThread.sources[0];
+        const existingState = threadStates.find(
+          (item) => item.userId === userId && item.threadId === existingThread.id
+        );
+
+        await putThreadState(database, {
+          id: existingState?.id ?? buildThreadStateId(userId, existingThread.id),
+          userId,
+          threadId: existingThread.id,
+          state: existingState?.caseId
+            ? "in_case"
+            : existingState?.state === "watching"
+              ? "watching"
+              : "new",
+          firstSeenAt: existingState?.firstSeenAt ?? now,
+          lastOpenedAt: existingState?.lastOpenedAt,
+          lastReviewedAt: existingState?.lastReviewedAt,
+          lastMeaningfulDeltaAt: existingState?.lastMeaningfulDeltaAt ?? now,
+          lastReactivatedAt: now,
+          caseId: existingState?.caseId,
+          updatedAt: now
+        });
+
+        return {
+          threadId: existingThread.id,
+          sourceId: existingSource.id,
+          duplicate: true
+        };
+      }
+
+      const source = buildManualSourceItem(draft, normalizedUrl, now);
+      const thread = buildManualThread(draft, source, now);
+      const existingRegistryEntry = registryEntries.find((entry) => entry.domain === source.domain);
+      const registryEntry = existingRegistryEntry
+        ? mergeRegistryEntry(existingRegistryEntry, source, thread.title)
+        : buildManualRegistryEntry(source, thread.title, now);
+      const transaction = database.transaction(
+        [storeNames.threads, storeNames.sourceRegistry, storeNames.threadStates],
+        "readwrite"
+      );
+
+      transaction.objectStore(storeNames.threads).put(thread);
+      transaction.objectStore(storeNames.sourceRegistry).put(registryEntry);
+      transaction.objectStore(storeNames.threadStates).put({
+        id: buildThreadStateId(userId, thread.id),
+        userId,
+        threadId: thread.id,
+        state: "new",
+        firstSeenAt: now,
+        lastMeaningfulDeltaAt: now,
+        updatedAt: now
+      });
+
+      await transactionDone(transaction);
+
+      return {
+        threadId: thread.id,
+        sourceId: source.id,
+        duplicate: false
+      };
     });
   }
 };

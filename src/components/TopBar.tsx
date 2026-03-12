@@ -4,6 +4,8 @@ interface TopBarProps {
   activeView: NavView;
   darkMode: boolean;
   onToggleTheme: () => void;
+  onOpenAddUrl: () => void;
+  addUrlDisabled?: boolean;
 }
 
 const titles: Record<NavView, { title: string; subtitle: string }> = {
@@ -25,7 +27,13 @@ const titles: Record<NavView, { title: string; subtitle: string }> = {
   }
 };
 
-export function TopBar({ activeView, darkMode, onToggleTheme }: TopBarProps) {
+export function TopBar({
+  activeView,
+  darkMode,
+  onToggleTheme,
+  onOpenAddUrl,
+  addUrlDisabled = false
+}: TopBarProps) {
   const view = titles[activeView];
 
   return (
@@ -41,6 +49,14 @@ export function TopBar({ activeView, darkMode, onToggleTheme }: TopBarProps) {
           <span className="status-dot" />
           <span>Local analyst profile</span>
         </div>
+        <button
+          className="ghost-button"
+          disabled={addUrlDisabled}
+          onClick={onOpenAddUrl}
+          type="button"
+        >
+          Add URL
+        </button>
         <button className="theme-button" onClick={onToggleTheme} type="button">
           {darkMode ? "Light theme" : "Dark theme"}
         </button>

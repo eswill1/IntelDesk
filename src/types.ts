@@ -82,6 +82,23 @@ export interface SourceRegistryEntry {
   emerging: boolean;
 }
 
+export interface ManualUrlIntake {
+  url: string;
+  title?: string;
+  summary?: string;
+  sourceType: SourceType;
+  status: ThreadStatus;
+  author?: string;
+  entities: string[];
+  note?: string;
+}
+
+export interface ManualUrlAddResult {
+  threadId: string;
+  sourceId: string;
+  duplicate: boolean;
+}
+
 export interface WorkspaceUser {
   id: string;
   name: string;

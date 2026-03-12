@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
+import { AddUrlDialog } from "./components/AddUrlDialog";
 import { CasesView } from "./components/CasesView";
 import { InboxView } from "./components/InboxView";
 import { SearchView } from "./components/SearchView";
@@ -12,7 +13,13 @@ import {
   sortThreadsForInbox
 } from "./lib/threadWorkflow";
 import { workbenchRepository } from "./lib/workbenchRepository";
-import type { NavView, SearchResult, ThreadQueueState, WorkbenchSnapshot } from "./types";
+import type {
+  ManualUrlIntake,
+  NavView,
+  SearchResult,
+  ThreadQueueState,
+  WorkbenchSnapshot
+} from "./types";
 
 const themeStorageKey = "inteldesk-theme";
 
@@ -39,6 +46,7 @@ export default function App() {
   const [selectedResultId, setSelectedResultId] = useState("");
   const [onlyDelta, setOnlyDelta] = useState(true);
   const [darkMode, setDarkMode] = useState<boolean>(readStoredTheme);
+  const [isAddUrlOpen, setIsAddUrlOpen] = useState(false);
   const deferredQuery = useDeferredValue(searchQuery);
   const previousInboxSelectionRef = useRef<string | null>(null);
   const skipAutoReviewThreadRef = useRef<string | null>(null);
@@ -146,6 +154,19 @@ export default function App() {
   async function refreshWorkbench() {
     const nextSnapshot = await workbenchRepository.getSnapshot();
     setSnapshot(nextSnapshot);
+  }
+
+  async function handleAddUrl(draft: ManualUrlIntake) {
+    if (!currentUserId) {
+      throw new Error("The local analyst profile is still loading.");
+    }
+
+    const result = await workbenchRepository.addManualUrl(currentUserId, draft);
+    await refreshWorkbench();
+    setOnlyDelta(!result.duplicate);
+    setSelectedThreadId(result.threadId);
+    setActiveView("inbox");
+    setIsAddUrlOpen(false);
   }
 
   function openThreadInInbox(threadId: string) {
@@ -330,11 +351,16 @@ export default function App() {
         event.preventDefault();
         setActiveView("search");
       }
+
+      if (event.key === "a" && currentUserId) {
+        event.preventDefault();
+        setIsAddUrlOpen(true);
+      }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeView, selectedThreadId, threadWorkflowMap, visibleThreads]);
+  }, [activeView, currentUserId, selectedThreadId, threadWorkflowMap, visibleThreads]);
 
   if (!snapshot) {
     return (
@@ -350,8 +376,10 @@ export default function App() {
 
         <main className="main-shell">
           <TopBar
+            addUrlDisabled
             activeView={activeView}
             darkMode={darkMode}
+            onOpenAddUrl={() => setIsAddUrlOpen(true)}
             onToggleTheme={() => setDarkMode((current) => !current)}
           />
 
@@ -380,7 +408,9 @@ export default function App() {
       <main className="main-shell">
         <TopBar
           activeView={activeView}
+          addUrlDisabled={!currentUserId}
           darkMode={darkMode}
+          onOpenAddUrl={() => setIsAddUrlOpen(true)}
           onToggleTheme={() => setDarkMode((current) => !current)}
         />
 
@@ -428,6 +458,12 @@ export default function App() {
           />
         ) : null}
       </main>
+
+      <AddUrlDialog
+        onClose={() => setIsAddUrlOpen(false)}
+        onSubmit={handleAddUrl}
+        open={isAddUrlOpen}
+      />
     </div>
   );
 }
