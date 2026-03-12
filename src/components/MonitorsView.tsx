@@ -109,54 +109,25 @@ export function MonitorsView({
     <div className="monitor-shell">
       <aside className="panel monitor-rail">
         <section className="workspace-summary">
-          <p className="eyebrow">Analyst briefing</p>
-          <h3>Start with the feed, not the folder tree.</h3>
-          <p className="brand-copy">
-            Keep the center column for rapid scanning, the right pane for evidence, and promote only
-            the cards that deserve durable follow-through.
-          </p>
-          <div className="briefing-grid">
-            <article className="briefing-card">
+          <p className="eyebrow">Monitor workspace</p>
+          <h3>Daily collection</h3>
+          <div className="rail-stat-stack">
+            <article className="rail-stat">
               <span className="metric-label">All cards</span>
               <strong>{allCardCount}</strong>
             </article>
-            <article className="briefing-card">
+            <article className="rail-stat">
               <span className="metric-label">Needs review</span>
               <strong>{reviewCount}</strong>
             </article>
-            <article className="briefing-card">
+            <article className="rail-stat">
               <span className="metric-label">Watching</span>
               <strong>{watchCount}</strong>
             </article>
-            <article className="briefing-card">
+            <article className="rail-stat">
               <span className="metric-label">In cases</span>
               <strong>{inCaseCount}</strong>
             </article>
-          </div>
-        </section>
-
-        <section className="rail-section">
-          <div className="rail-section-header">
-            <div>
-              <p className="eyebrow">Focus views</p>
-              <h4>Queues</h4>
-            </div>
-          </div>
-          <div className="quick-view-list">
-            {focusViews.map((view) => (
-              <button
-                key={view.id || "all-cards"}
-                className={`quick-view-button${view.id === selectedMonitorId ? " is-active" : ""}`}
-                onClick={() => onSelectMonitor(view.id)}
-                type="button"
-              >
-                <div>
-                  <strong>{view.label}</strong>
-                  <small>{view.description}</small>
-                </div>
-                <span className="monitor-count">{view.count}</span>
-              </button>
-            ))}
           </div>
         </section>
 
@@ -215,6 +186,20 @@ export function MonitorsView({
           </div>
         </div>
 
+        <div className="focus-strip">
+          {focusViews.map((view) => (
+            <button
+              key={view.id || "all-cards-focus"}
+              className={`focus-chip${view.id === selectedMonitorId ? " is-active" : ""}`}
+              onClick={() => onSelectMonitor(view.id)}
+              type="button"
+            >
+              <span>{view.label}</span>
+              <strong>{view.count}</strong>
+            </button>
+          ))}
+        </div>
+
         <div className="monitor-hero">
           <div>
             <span className="metric-label">Fresh changes</span>
@@ -260,6 +245,7 @@ export function MonitorsView({
                   onClick={() => onSelectCard(card.id)}
                   type="button"
                 >
+                  <div className="feed-card-marker" />
                   <div className="feed-card-main">
                     <div className="thread-card-topline">
                       <span className={`status-tag status-${workflow.queueState}`}>

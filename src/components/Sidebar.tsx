@@ -47,25 +47,15 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="sidebar-surface">
         <div className="brand-panel">
-          <div className="brand-mark">ID</div>
+          <div className="brand-mark">I</div>
           <div className="brand-lockup">
-            <p className="eyebrow">Threat Intelligence Cockpit</p>
+            <p className="eyebrow">Threat Intelligence</p>
             <h1>IntelDesk</h1>
             <p className="brand-copy">
-              Feed-driven monitoring with deliberate case follow-through when the story becomes
-              operational.
+              Feed-driven collection first. Cases only when the signal proves it matters.
             </p>
           </div>
         </div>
-
-        <section className="sidebar-brief">
-          <p className="eyebrow">Today</p>
-          <h3>Stay inside the signal.</h3>
-          <p className="brand-copy">
-            Start in monitors, decide fast, and only open a case when the evidence says it deserves
-            one.
-          </p>
-        </section>
 
         <nav className="nav-panel" aria-label="Primary">
           {navItems.map((item) => (

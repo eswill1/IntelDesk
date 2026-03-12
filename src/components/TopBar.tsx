@@ -12,7 +12,7 @@ const titles: Record<NavView, { title: string; subtitle: string }> = {
   monitors: {
     title: "Monitors",
     subtitle:
-      "A calm, high-signal stream for daily collection, triage, and quick analyst decisions."
+      "A monitor-first stream for daily collection, triage, and quick analyst decisions."
   },
   cases: {
     title: "Cases",
@@ -36,12 +36,12 @@ export function TopBar({
   return (
     <header className="topbar">
       <div className="topbar-intro">
-        <p className="eyebrow">Monitor first. Case second.</p>
+        <p className="eyebrow">Analyst workspace</p>
         <div className="topbar-heading-row">
           <h2>{view.title}</h2>
           <div className="status-pill topbar-status">
             <span className="status-dot" />
-            <span>Local analyst workspace</span>
+            <span>Local workspace</span>
           </div>
         </div>
         <p className="topbar-copy">{view.subtitle}</p>
