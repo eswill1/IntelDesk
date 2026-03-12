@@ -1,146 +1,116 @@
-import { useDeferredValue, useEffect, useState } from "react";
-import { caseFiles as seededCases, sourceRegistry, threads } from "./data/mockData";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { CasesView } from "./components/CasesView";
 import { InboxView } from "./components/InboxView";
 import { SearchView } from "./components/SearchView";
 import { Sidebar } from "./components/Sidebar";
 import { SourcesView } from "./components/SourcesView";
 import { TopBar } from "./components/TopBar";
-import type { CaseFile, NavView, SearchResult, Thread } from "./types";
+import {
+  buildThreadQueueSections,
+  buildThreadWorkflowMap,
+  getThreadQueueMeta,
+  sortThreadsForInbox
+} from "./lib/threadWorkflow";
+import { workbenchRepository } from "./lib/workbenchRepository";
+import type { NavView, SearchResult, ThreadQueueState, WorkbenchSnapshot } from "./types";
 
 const themeStorageKey = "inteldesk-theme";
-const casesStorageKey = "inteldesk-cases-v2";
-const watchedThreadsStorageKey = "inteldesk-watched-threads-v2";
 
-function readStoredJson<T>(storageKey: string, fallback: T): T {
+function readStoredTheme() {
   if (typeof window === "undefined") {
-    return fallback;
+    return true;
   }
 
-  const stored = window.localStorage.getItem(storageKey);
-
-  if (!stored) {
-    return fallback;
-  }
-
-  try {
-    return JSON.parse(stored) as T;
-  } catch {
-    return fallback;
-  }
+  const persisted = window.localStorage.getItem(themeStorageKey);
+  return persisted ? persisted === "dark" : true;
 }
 
-function buildCaseFromThread(thread: Thread): CaseFile {
-  const createdAt = new Date().toISOString();
-  const canonicalSource = thread.sources.find((source) => source.isCanonical) ?? thread.sources[0];
-
-  return {
-    id: `case-${thread.id}`,
-    title: thread.title,
-    status: "watching",
-    tags: thread.entities.slice(0, 3),
-    lastUpdated: thread.lastUpdated,
-    lastSeenAt: createdAt,
-    deltaSummary: [
-      "Case created from Inbox for deliberate follow-up.",
-      ...thread.changeHighlights.slice(0, 2)
-    ],
-    linkedThreadIds: [thread.id],
-    linkedSourceIds: thread.sources.map((source) => source.id),
-    notes: [
-      {
-        id: `note-${thread.id}-seed`,
-        createdAt,
-        text: "Created from the Inbox when the thread crossed from interesting to worth revisiting.",
-        pinned: true
-      }
-    ],
-    timeline: [
-      {
-        id: `timeline-${thread.id}-source`,
-        at: canonicalSource?.publishedAt ?? thread.lastUpdated,
-        label: "Initial canonical source",
-        detail: canonicalSource
-          ? `${canonicalSource.domain} established the first durable record for this case.`
-          : "Thread promoted from Inbox without a canonical source selected yet.",
-        kind: "source"
-      },
-      {
-        id: `timeline-${thread.id}-promotion`,
-        at: createdAt,
-        label: "Case created from Inbox",
-        detail: "Thread promoted into a case so notes, deltas, and sources survive triage.",
-        kind: "status"
-      }
-    ]
-  };
+function isNeedsReviewQueue(queueState?: ThreadQueueState) {
+  return queueState === "new" || queueState === "new-delta";
 }
 
 export default function App() {
+  const [snapshot, setSnapshot] = useState<WorkbenchSnapshot | null>(null);
   const [activeView, setActiveView] = useState<NavView>("inbox");
-  const [selectedThreadId, setSelectedThreadId] = useState<string>("thread-fortinet");
-  const [cases, setCases] = useState<CaseFile[]>(() => readStoredJson(casesStorageKey, seededCases));
-  const [watchedThreadIds, setWatchedThreadIds] = useState<string[]>(() =>
-    readStoredJson(watchedThreadsStorageKey, ["thread-fortinet"])
-  );
-  const [selectedCaseId, setSelectedCaseId] = useState<string>(() =>
-    readStoredJson(casesStorageKey, seededCases)[0]?.id ?? ""
-  );
-  const [selectedSourceId, setSelectedSourceId] = useState<string>(sourceRegistry[0].id);
+  const [selectedThreadId, setSelectedThreadId] = useState("");
+  const [selectedCaseId, setSelectedCaseId] = useState("");
+  const [selectedSourceId, setSelectedSourceId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedResultId, setSelectedResultId] = useState("");
   const [onlyDelta, setOnlyDelta] = useState(true);
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const persisted =
-      typeof window !== "undefined" ? window.localStorage.getItem(themeStorageKey) : null;
-    return persisted ? persisted === "dark" : true;
-  });
-
+  const [darkMode, setDarkMode] = useState<boolean>(readStoredTheme);
   const deferredQuery = useDeferredValue(searchQuery);
-  const threadCaseIdMap = cases.reduce<Record<string, string>>((accumulator, item) => {
-    item.linkedThreadIds.forEach((threadId) => {
-      accumulator[threadId] = item.id;
-    });
-    return accumulator;
-  }, {});
-  const watchedThreads = threads.filter(
-    (thread) => watchedThreadIds.includes(thread.id) && !threadCaseIdMap[thread.id]
-  );
+  const previousInboxSelectionRef = useRef<string | null>(null);
+  const skipAutoReviewThreadRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadWorkbench() {
+      const nextSnapshot = await workbenchRepository.getSnapshot();
+
+      if (!cancelled) {
+        setSnapshot(nextSnapshot);
+      }
+    }
+
+    void loadWorkbench();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = darkMode ? "dark" : "light";
+    window.localStorage.setItem(themeStorageKey, darkMode ? "dark" : "light");
+  }, [darkMode]);
+
+  const currentUserId = snapshot?.currentUser.id ?? "";
+  const threads = snapshot?.threads ?? [];
+  const sourceRegistry = snapshot?.sourceRegistry ?? [];
+  const cases = snapshot?.cases ?? [];
+  const threadStates = snapshot?.threadStates ?? [];
+  const threadWorkflowMap = buildThreadWorkflowMap(threads, threadStates);
+  const inboxThreads = sortThreadsForInbox(
+    threads.filter((thread) => threadWorkflowMap[thread.id]?.queueState !== "muted"),
+    threadWorkflowMap
+  );
   const visibleThreads = onlyDelta
-    ? threads.filter(
-        (thread) =>
-          thread.changeHighlights.length > 0 &&
-          thread.changeHighlights[0] !== "No new changes since the last review."
-      )
-    : threads;
+    ? inboxThreads.filter((thread) => isNeedsReviewQueue(threadWorkflowMap[thread.id]?.queueState))
+    : inboxThreads;
+  const queueSections = buildThreadQueueSections(visibleThreads, threadWorkflowMap);
+  const watchedThreads = inboxThreads.filter(
+    (thread) => threadWorkflowMap[thread.id]?.state === "watching"
+  );
+  const needsReviewCount = inboxThreads.filter((thread) =>
+    isNeedsReviewQueue(threadWorkflowMap[thread.id]?.queueState)
+  ).length;
 
   const query = deferredQuery.trim().toLowerCase();
   const resultSet: SearchResult[] = [
-    ...threads.map((thread) => ({
-      id: thread.id,
-      kind: "thread" as const,
-      title: thread.title,
-      subtitle: thread.summary,
-      context: thread.changeHighlights.join(" "),
-      updatedAt: thread.lastUpdated,
-      tags: [
-        ...thread.entities,
-        threadCaseIdMap[thread.id]
-          ? "in case"
-          : watchedThreadIds.includes(thread.id)
-            ? "watch queue"
-            : "inbox"
-      ]
-    })),
+    ...threads.map((thread) => {
+      const workflow = threadWorkflowMap[thread.id];
+      const queueMeta = getThreadQueueMeta(workflow?.queueState ?? "new");
+
+      return {
+        id: thread.id,
+        kind: "thread" as const,
+        title: thread.title,
+        subtitle: thread.summary,
+        context: thread.changeHighlights.join(" "),
+        updatedAt: thread.lastUpdated,
+        tags: [...thread.entities, queueMeta.badge.toLowerCase()]
+      };
+    }),
     ...cases.map((item) => ({
       id: item.id,
       kind: "case" as const,
       title: item.title,
       subtitle: item.deltaSummary.join(" "),
       context: item.notes.map((note) => note.text).join(" "),
-      updatedAt: item.lastUpdated,
-      tags: item.tags
+      updatedAt: item.updatedAt,
+      tags: [...item.tags, item.status]
     })),
     ...threads.flatMap((thread) =>
       thread.sources.map((source) => ({
@@ -173,6 +143,11 @@ export default function App() {
         return haystack.includes(query);
       });
 
+  async function refreshWorkbench() {
+    const nextSnapshot = await workbenchRepository.getSnapshot();
+    setSnapshot(nextSnapshot);
+  }
+
   function openThreadInInbox(threadId: string) {
     if (!visibleThreads.some((thread) => thread.id === threadId)) {
       setOnlyDelta(false);
@@ -183,54 +158,82 @@ export default function App() {
   }
 
   function toggleWatchThread(threadId: string) {
-    if (threadCaseIdMap[threadId]) {
-      setSelectedCaseId(threadCaseIdMap[threadId]);
+    if (!currentUserId) {
+      return;
+    }
+
+    const caseId = threadWorkflowMap[threadId]?.caseId;
+
+    if (caseId) {
+      setSelectedCaseId(caseId);
       setActiveView("cases");
       return;
     }
 
-    setWatchedThreadIds((current) =>
-      current.includes(threadId)
-        ? current.filter((id) => id !== threadId)
-        : [threadId, ...current]
-    );
+    skipAutoReviewThreadRef.current = threadId;
+
+    void (async () => {
+      await workbenchRepository.toggleThreadWatch(currentUserId, threadId);
+      await refreshWorkbench();
+    })();
   }
 
   function saveThreadToCase(threadId: string) {
-    const existingCaseId = threadCaseIdMap[threadId];
+    if (!currentUserId) {
+      return;
+    }
+
+    const existingCaseId = threadWorkflowMap[threadId]?.caseId;
 
     if (existingCaseId) {
+      skipAutoReviewThreadRef.current = threadId;
       setSelectedCaseId(existingCaseId);
       setActiveView("cases");
       return;
     }
 
-    const thread = threads.find((item) => item.id === threadId);
+    skipAutoReviewThreadRef.current = threadId;
 
-    if (!thread) {
-      return;
-    }
-
-    const createdCase = buildCaseFromThread(thread);
-
-    setCases((current) => [createdCase, ...current]);
-    setWatchedThreadIds((current) => current.filter((id) => id !== threadId));
-    setSelectedCaseId(createdCase.id);
-    setActiveView("cases");
+    void (async () => {
+      const caseId = await workbenchRepository.saveThreadToCase(currentUserId, threadId);
+      await refreshWorkbench();
+      setSelectedCaseId(caseId);
+      setActiveView("cases");
+    })();
   }
 
   useEffect(() => {
-    document.documentElement.dataset.theme = darkMode ? "dark" : "light";
-    window.localStorage.setItem(themeStorageKey, darkMode ? "dark" : "light");
-  }, [darkMode]);
+    if (!currentUserId || activeView !== "inbox" || !selectedThreadId) {
+      return;
+    }
+
+    void (async () => {
+      await workbenchRepository.recordThreadOpen(currentUserId, selectedThreadId);
+      await refreshWorkbench();
+    })();
+  }, [activeView, currentUserId, selectedThreadId]);
 
   useEffect(() => {
-    window.localStorage.setItem(casesStorageKey, JSON.stringify(cases));
-  }, [cases]);
+    if (!currentUserId) {
+      return;
+    }
 
-  useEffect(() => {
-    window.localStorage.setItem(watchedThreadsStorageKey, JSON.stringify(watchedThreadIds));
-  }, [watchedThreadIds]);
+    const currentInboxSelection = activeView === "inbox" ? selectedThreadId : null;
+    const previousThreadId = previousInboxSelectionRef.current;
+
+    if (previousThreadId && previousThreadId !== currentInboxSelection) {
+      if (skipAutoReviewThreadRef.current === previousThreadId) {
+        skipAutoReviewThreadRef.current = null;
+      } else if (isNeedsReviewQueue(threadWorkflowMap[previousThreadId]?.queueState)) {
+        void (async () => {
+          await workbenchRepository.markThreadReviewed(currentUserId, previousThreadId);
+          await refreshWorkbench();
+        })();
+      }
+    }
+
+    previousInboxSelectionRef.current = currentInboxSelection;
+  }, [activeView, currentUserId, selectedThreadId, threadWorkflowMap]);
 
   useEffect(() => {
     if (!visibleThreads.some((thread) => thread.id === selectedThreadId) && visibleThreads[0]) {
@@ -245,13 +248,19 @@ export default function App() {
   }, [cases, selectedCaseId]);
 
   useEffect(() => {
+    if (!sourceRegistry.some((item) => item.id === selectedSourceId)) {
+      setSelectedSourceId(sourceRegistry[0]?.id ?? "");
+    }
+  }, [selectedSourceId, sourceRegistry]);
+
+  useEffect(() => {
     if (!searchResults.some((result) => result.id === selectedResultId)) {
       setSelectedResultId(searchResults[0]?.id ?? "");
     }
   }, [searchResults, selectedResultId]);
 
   useEffect(() => {
-    const selectedThreadCaseId = threadCaseIdMap[selectedThreadId];
+    const selectedThreadCaseId = threadWorkflowMap[selectedThreadId]?.caseId;
 
     function onKeyDown(event: KeyboardEvent) {
       if (
@@ -281,6 +290,7 @@ export default function App() {
         event.preventDefault();
         const currentIndex = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
         const nextIndex = Math.min(currentIndex + 1, visibleThreads.length - 1);
+
         if (visibleThreads[nextIndex]) {
           setSelectedThreadId(visibleThreads[nextIndex].id);
         }
@@ -290,6 +300,7 @@ export default function App() {
         event.preventDefault();
         const currentIndex = visibleThreads.findIndex((thread) => thread.id === selectedThreadId);
         const nextIndex = Math.max(currentIndex - 1, 0);
+
         if (visibleThreads[nextIndex]) {
           setSelectedThreadId(visibleThreads[nextIndex].id);
         }
@@ -300,12 +311,12 @@ export default function App() {
         setOnlyDelta((current) => !current);
       }
 
-      if (event.key === "w" && activeView === "inbox" && !selectedThreadCaseId) {
+      if (event.key === "w" && activeView === "inbox" && selectedThreadId && !selectedThreadCaseId) {
         event.preventDefault();
         toggleWatchThread(selectedThreadId);
       }
 
-      if (event.key === "s" && activeView === "inbox") {
+      if (event.key === "s" && activeView === "inbox" && selectedThreadId) {
         event.preventDefault();
         saveThreadToCase(selectedThreadId);
       }
@@ -323,7 +334,37 @@ export default function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeView, selectedThreadId, threadCaseIdMap, visibleThreads]);
+  }, [activeView, selectedThreadId, threadWorkflowMap, visibleThreads]);
+
+  if (!snapshot) {
+    return (
+      <div className="app-shell">
+        <Sidebar
+          activeView={activeView}
+          caseCount={0}
+          onSelectView={setActiveView}
+          reviewCount={0}
+          sourceCount={0}
+          watchCount={0}
+        />
+
+        <main className="main-shell">
+          <TopBar
+            activeView={activeView}
+            darkMode={darkMode}
+            onToggleTheme={() => setDarkMode((current) => !current)}
+          />
+
+          <section className="panel list-panel">
+            <article className="empty-state">
+              <h4>Loading workbench</h4>
+              <p>Opening the local analyst profile and restoring the review queue.</p>
+            </article>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -331,8 +372,8 @@ export default function App() {
         activeView={activeView}
         caseCount={cases.length}
         onSelectView={setActiveView}
+        reviewCount={needsReviewCount}
         sourceCount={sourceRegistry.length}
-        threadCount={visibleThreads.length}
         watchCount={watchedThreads.length}
       />
 
@@ -346,14 +387,14 @@ export default function App() {
         {activeView === "inbox" ? (
           <InboxView
             onlyDelta={onlyDelta}
-            onSelectThread={setSelectedThreadId}
             onSaveThreadToCase={saveThreadToCase}
+            onSelectThread={setSelectedThreadId}
             onToggleOnlyDelta={() => setOnlyDelta((current) => !current)}
             onToggleWatchThread={toggleWatchThread}
+            queueSections={queueSections}
             selectedThreadId={selectedThreadId}
-            threadCaseIdMap={threadCaseIdMap}
+            threadWorkflowMap={threadWorkflowMap}
             threads={visibleThreads}
-            watchedThreadIds={watchedThreadIds}
           />
         ) : null}
 

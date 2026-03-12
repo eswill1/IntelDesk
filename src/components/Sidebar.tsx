@@ -3,7 +3,7 @@ import type { NavView } from "../types";
 interface SidebarProps {
   activeView: NavView;
   onSelectView: (view: NavView) => void;
-  threadCount: number;
+  reviewCount: number;
   watchCount: number;
   caseCount: number;
   sourceCount: number;
@@ -44,7 +44,7 @@ const navItems: Array<{
 export function Sidebar({
   activeView,
   onSelectView,
-  threadCount,
+  reviewCount,
   watchCount,
   caseCount,
   sourceCount
@@ -78,8 +78,8 @@ export function Sidebar({
 
       <section className="session-panel panel">
         <div>
-          <span className="metric-label">Active threads</span>
-          <strong>{threadCount}</strong>
+          <span className="metric-label">Needs review</span>
+          <strong>{reviewCount}</strong>
         </div>
         <div>
           <span className="metric-label">Watch queue</span>

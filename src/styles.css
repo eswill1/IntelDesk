@@ -305,6 +305,24 @@ button {
   gap: 0.85rem;
 }
 
+.queue-section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.queue-section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.queue-section-copy {
+  margin: 0.3rem 0 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
 .thread-card,
 .case-card,
 .dossier-card,
@@ -374,11 +392,27 @@ button {
   color: var(--accent);
 }
 
+.status-new,
+.status-in-case {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .status-developing,
 .status-watching,
 .status-neutral {
   background: var(--gold-soft);
   color: var(--gold);
+}
+
+.status-reviewed {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}
+
+.status-new-delta {
+  background: var(--delta-soft);
+  color: var(--delta);
 }
 
 .status-disputed,

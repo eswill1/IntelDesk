@@ -39,7 +39,7 @@ export function TopBar({ activeView, darkMode, onToggleTheme }: TopBarProps) {
       <div className="topbar-actions">
         <div className="status-pill">
           <span className="status-dot" />
-          <span>Single-user mode</span>
+          <span>Local analyst profile</span>
         </div>
         <button className="theme-button" onClick={onToggleTheme} type="button">
           {darkMode ? "Light theme" : "Dark theme"}

@@ -1,7 +1,7 @@
-import type { CaseFile, Thread } from "../types";
+import type { StoredCaseFile, Thread } from "../types";
 
 interface CasesViewProps {
-  cases: CaseFile[];
+  cases: StoredCaseFile[];
   threads: Thread[];
   selectedCaseId: string;
   onSelectCase: (caseId: string) => void;
