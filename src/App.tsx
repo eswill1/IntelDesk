@@ -1,10 +1,6 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { AddUrlDialog } from "./components/AddUrlDialog";
-import { CasesView } from "./components/CasesView";
-import { LibraryView } from "./components/LibraryView";
-import { MonitorsView } from "./components/MonitorsView";
-import { Sidebar } from "./components/Sidebar";
-import { TopBar } from "./components/TopBar";
+import { WorkspaceExperience } from "./components/WorkspaceExperience";
 import { agentDefinitions } from "./data/mockData";
 import { buildAgentViews } from "./lib/agents";
 import {
@@ -155,18 +151,6 @@ export default function App() {
       count: inCaseCount
     }
   ];
-  const selectedFocusView = focusViews.find((view) => view.id === selectedMonitorId) ?? focusViews[0];
-  const activeFeed = selectedMonitor
-    ? {
-        eyebrow: "Saved monitor",
-        title: selectedMonitor.title,
-        description: selectedMonitor.summary
-      }
-    : {
-        eyebrow: selectedFocusView.id ? "Focused view" : "Daily monitor feed",
-        title: selectedFocusView.label,
-        description: selectedFocusView.description
-      };
 
   const query = deferredQuery.trim().toLowerCase();
   const resultSet: SearchResult[] = [
@@ -469,105 +453,66 @@ export default function App() {
 
   if (!snapshot) {
     return (
-      <div className="app-shell">
-        <Sidebar
-          activeView={activeView}
-          caseCount={0}
-          onSelectView={setActiveView}
-          reviewCount={0}
-          sourceCount={0}
-          watchCount={0}
-        />
+      <div className="studio-shell">
+        <header className="command-deck">
+          <div className="command-brand">
+            <div className="command-mark">IntelDesk</div>
+            <div>
+              <p className="eyebrow">Open-source threat intelligence</p>
+              <h1>Follow the signal before the crowd catches up.</h1>
+            </div>
+          </div>
+        </header>
 
-        <main className="main-shell">
-          <TopBar
-            addUrlDisabled
-            activeView={activeView}
-            darkMode={darkMode}
-            onOpenAddUrl={() => setIsAddUrlOpen(true)}
-            onToggleTheme={() => setDarkMode((current) => !current)}
-          />
-
-          <section className="panel list-panel">
-            <article className="empty-state">
-              <h4>Loading monitors</h4>
-              <p>Opening the local analyst profile and restoring the curated feed.</p>
-            </article>
-          </section>
-        </main>
+        <article className="blank-module">
+          <h4>Loading workspace</h4>
+          <p>Opening the local analyst profile and restoring the curated monitor stream.</p>
+        </article>
       </div>
     );
   }
 
   return (
     <div className="app-shell">
-      <Sidebar
+      <WorkspaceExperience
         activeView={activeView}
-        caseCount={cases.length}
-        onSelectView={setActiveView}
-        reviewCount={needsReviewCount}
-        sourceCount={sourceRegistry.length}
-        watchCount={watchedThreads.length}
-      />
-
-      <main className="main-shell">
-        <TopBar
-          activeView={activeView}
           addUrlDisabled={!currentUserId}
+          allThreads={threads}
+          cases={cases}
           darkMode={darkMode}
+          deltaToggleDisabled={deltaToggleDisabled}
+          focusViews={focusViews}
+          inCaseCount={inCaseCount}
+          monitors={monitorViews}
           onOpenAddUrl={() => setIsAddUrlOpen(true)}
+          onOpenThreadInMonitors={openThreadInMonitors}
+          onPromoteThreadToCase={saveThreadToCase}
+          onQueryChange={setSearchQuery}
+          onSaveCardToCase={saveThreadToCase}
+          onSelectCard={setSelectedThreadId}
+          onSelectCase={setSelectedCaseId}
+          onSelectMonitor={setSelectedMonitorId}
+          onSelectResult={setSelectedResultId}
+          onSelectSource={setSelectedSourceId}
+          onSelectView={setActiveView}
+          onToggleOnlyDelta={() => setOnlyDelta((current) => !current)}
           onToggleTheme={() => setDarkMode((current) => !current)}
+          onToggleWatchCard={toggleWatchThread}
+          onlyDelta={onlyDelta}
+          query={searchQuery}
+          registry={sourceRegistry}
+          results={searchResults}
+          reviewCount={needsReviewCount}
+          selectedCardId={selectedThreadId}
+          selectedCaseId={selectedCaseId}
+          selectedMonitorId={selectedMonitorId}
+          selectedResultId={selectedResultId}
+          selectedSourceId={selectedSourceId}
+          threadWorkflowMap={threadWorkflowMap}
+          watchCount={watchedThreads.length}
+          watchedThreads={watchedThreads}
+          cards={visibleThreads}
         />
-
-        {activeView === "monitors" ? (
-          <MonitorsView
-            activeFeed={activeFeed}
-            allCardCount={allCards.length}
-            cards={visibleThreads}
-            deltaToggleDisabled={deltaToggleDisabled}
-            focusViews={focusViews}
-            inCaseCount={inCaseCount}
-            monitors={monitorViews}
-            onSaveCardToCase={saveThreadToCase}
-            onSelectCard={setSelectedThreadId}
-            onSelectMonitor={setSelectedMonitorId}
-            onToggleOnlyDelta={() => setOnlyDelta((current) => !current)}
-            onToggleWatchCard={toggleWatchThread}
-            onlyDelta={onlyDelta}
-            reviewCount={needsReviewCount}
-            selectedCardId={selectedThreadId}
-            selectedMonitorId={selectedMonitorId}
-            threadWorkflowMap={threadWorkflowMap}
-            watchCount={watchedThreads.length}
-          />
-        ) : null}
-
-        {activeView === "cases" ? (
-          <CasesView
-            cases={cases}
-            onOpenThreadInMonitors={openThreadInMonitors}
-            onPromoteThreadToCase={saveThreadToCase}
-            onSelectCase={setSelectedCaseId}
-            selectedCaseId={selectedCaseId}
-            threads={threads}
-            watchedThreads={watchedThreads}
-          />
-        ) : null}
-
-        {activeView === "library" ? (
-          <LibraryView
-            onQueryChange={setSearchQuery}
-            onSelectResult={setSelectedResultId}
-            onSelectSource={setSelectedSourceId}
-            query={searchQuery}
-            registry={sourceRegistry}
-            results={searchResults}
-            selectedResultId={selectedResultId}
-            selectedSourceId={selectedSourceId}
-          />
-        ) : null}
-      </main>
-
       <AddUrlDialog
         onClose={() => setIsAddUrlOpen(false)}
         onSeedInvestigation={handleSeedInvestigation}
